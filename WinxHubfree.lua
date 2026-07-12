@@ -224,7 +224,7 @@ end
 
 local function CreateButton(parent, text, callback)
     local bf = Instance.new("Frame")
-    bf.Size = UDim2.new(0.9, 0, 0, 38)
+    bf.Size = UDim2.new(0.9, 0, 0, 32)
     bf.BackgroundColor3 = Theme.Section
     bf.BorderSizePixel = 0
     bf.Parent = parent
@@ -251,7 +251,7 @@ end
 
 local function CreateToggle(parent, text, default, callback)
     local tf = Instance.new("Frame")
-    tf.Size = UDim2.new(0.9, 0, 0, 38)
+    tf.Size = UDim2.new(0.9, 0, 0, 32)
     tf.BackgroundColor3 = Theme.Section
     tf.BorderSizePixel = 0
     tf.Parent = parent
@@ -307,7 +307,7 @@ end
 
 local function CreateSlider(parent, text, min, max, default, callback)
     local sf = Instance.new("Frame")
-    sf.Size = UDim2.new(0.9, 0, 0, 48)
+    sf.Size = UDim2.new(0.9, 0, 0, 42)
     sf.BackgroundColor3 = Theme.Section
     sf.BorderSizePixel = 0
     sf.Parent = parent
@@ -466,10 +466,10 @@ function UILib.new(opts)
     end
     _notifySG = self.ScreenGui -- Permite que Notify use a ScreenGui correta
 
-    -- Main Frame
+    -- Main Frame (Tamanho reduzido de 620x430 para 520x350)
     self.MainFrame = Instance.new("Frame")
-    self.MainFrame.Size = UDim2.new(0, 620, 0, 430)
-    self.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -215)
+    self.MainFrame.Size = UDim2.new(0, 520, 0, 350)
+    self.MainFrame.Position = UDim2.new(0.5, -260, 0.5, -175)
     self.MainFrame.BackgroundColor3 = Theme.Background
     self.MainFrame.BorderSizePixel = 0
     self.MainFrame.ClipsDescendants = true
@@ -496,9 +496,9 @@ function UILib.new(opts)
     mainShadow.Transparency = Theme.ShadowTransparency
     mainShadow.Parent = self.MainFrame
 
-    -- Sidebar
+    -- Sidebar (Reduzido de 170 para 140)
     self.Sidebar = Instance.new("Frame")
-    self.Sidebar.Size = UDim2.new(0, 170, 1, 0)
+    self.Sidebar.Size = UDim2.new(0, 140, 1, 0)
     self.Sidebar.BackgroundColor3 = Theme.Sidebar
     self.Sidebar.BorderSizePixel = 0
     self.Sidebar.Parent = self.MainFrame
@@ -508,28 +508,28 @@ function UILib.new(opts)
 
     -- Logo
     local logo = Instance.new("TextLabel")
-    logo.Size = UDim2.new(1, 0, 0, 45)
+    logo.Size = UDim2.new(1, 0, 0, 35)
     logo.BackgroundTransparency = 1
     logo.Text = self.Title
     logo.TextColor3 = Theme.Accent
     logo.Font = Theme.FontBold
-    logo.TextSize = 18
+    logo.TextSize = 16
     logo.Parent = self.Sidebar
 
     local sub = Instance.new("TextLabel")
-    sub.Size = UDim2.new(1, 0, 0, 18)
-    sub.Position = UDim2.new(0, 0, 0, 45)
+    sub.Size = UDim2.new(1, 0, 0, 14)
+    sub.Position = UDim2.new(0, 0, 0, 35)
     sub.BackgroundTransparency = 1
     sub.Text = self.SubTitle
     sub.TextColor3 = Theme.TextSecondary
     sub.Font = Theme.Font
-    sub.TextSize = 10
+    sub.TextSize = 9
     sub.Parent = self.Sidebar
 
     -- Search
     local searchF = Instance.new("Frame")
-    searchF.Size = UDim2.new(0.9, 0, 0, 30)
-    searchF.Position = UDim2.new(0.05, 0, 0, 68)
+    searchF.Size = UDim2.new(0.9, 0, 0, 26)
+    searchF.Position = UDim2.new(0.05, 0, 0, 55)
     searchF.BackgroundColor3 = Theme.Section
     searchF.Parent = self.Sidebar
     local searchCorner = Instance.new("UICorner")
@@ -549,8 +549,8 @@ function UILib.new(opts)
 
     -- Tab Container
     self.TabContainer = Instance.new("ScrollingFrame")
-    self.TabContainer.Size = UDim2.new(1, 0, 0, 230)
-    self.TabContainer.Position = UDim2.new(0, 0, 0, 103)
+    self.TabContainer.Size = UDim2.new(1, 0, 0, 160)
+    self.TabContainer.Position = UDim2.new(0, 0, 0, 85)
     self.TabContainer.BackgroundTransparency = 1
     self.TabContainer.BorderSizePixel = 0
     self.TabContainer.ScrollBarThickness = 0
@@ -563,8 +563,8 @@ function UILib.new(opts)
 
     -- Player Info
     local pi = Instance.new("Frame")
-    pi.Size = UDim2.new(0.9, 0, 0, 65)
-    pi.Position = UDim2.new(0.05, 0, 1, -90)
+    pi.Size = UDim2.new(0.9, 0, 0, 55)
+    pi.Position = UDim2.new(0.05, 0, 1, -75)
     pi.BackgroundColor3 = Theme.Section
     pi.BorderSizePixel = 0
     pi.Parent = self.Sidebar
@@ -573,8 +573,8 @@ function UILib.new(opts)
     piCorner.Parent = pi
 
     local av = Instance.new("ImageLabel")
-    av.Size = UDim2.new(0, 40, 0, 40)
-    av.Position = UDim2.new(0, 10, 0, 12)
+    av.Size = UDim2.new(0, 34, 0, 34)
+    av.Position = UDim2.new(0, 8, 0, 10)
     av.BackgroundColor3 = Theme.Background
     local okAv, avUrl = pcall(function()
         return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
@@ -586,8 +586,8 @@ function UILib.new(opts)
     avCorner.Parent = av
 
     local nl = Instance.new("TextLabel")
-    nl.Size = UDim2.new(1, -60, 0, 20)
-    nl.Position = UDim2.new(0, 58, 0, 12)
+    nl.Size = UDim2.new(1, -60, 0, 18)
+    nl.Position = UDim2.new(0, 50, 0, 10)
     nl.BackgroundTransparency = 1
     nl.Text = LocalPlayer.DisplayName
     nl.TextColor3 = Theme.TextPrimary
@@ -597,8 +597,8 @@ function UILib.new(opts)
     nl.Parent = pi
 
     local sl = Instance.new("TextLabel")
-    sl.Size = UDim2.new(1, -60, 0, 18)
-    sl.Position = UDim2.new(0, 58, 0, 30)
+    sl.Size = UDim2.new(1, -60, 0, 14)
+    sl.Position = UDim2.new(0, 50, 0, 26)
     sl.BackgroundTransparency = 1
     sl.Text = "Online"
     sl.TextColor3 = Color3.fromRGB(0, 255, 100)
@@ -637,8 +637,8 @@ function UILib.new(opts)
 
     -- Content Area
     self.ContentArea = Instance.new("Frame")
-    self.ContentArea.Size = UDim2.new(1, -170, 1, 0)
-    self.ContentArea.Position = UDim2.new(0, 170, 0, 0)
+    self.ContentArea.Size = UDim2.new(1, -140, 1, 0)
+    self.ContentArea.Position = UDim2.new(0, 140, 0, 0)
     self.ContentArea.BackgroundTransparency = 1
     self.ContentArea.Parent = self.MainFrame
 
@@ -667,13 +667,13 @@ function UILib.new(opts)
 
     -- Close button
     local cb = Instance.new("TextButton")
-    cb.Size = UDim2.new(0, 22, 0, 22)
-    cb.Position = UDim2.new(1, -27, 0, 6)
+    cb.Size = UDim2.new(0, 20, 0, 20)
+    cb.Position = UDim2.new(1, -25, 0, 5)
     cb.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     cb.Text = "X"
     cb.TextColor3 = Theme.TextPrimary
     cb.Font = Theme.FontBold
-    cb.TextSize = 14
+    cb.TextSize = 12
     cb.Parent = self.MainFrame
     local cbCorner = Instance.new("UICorner")
     cbCorner.CornerRadius = UDim.new(0, 4)
@@ -686,13 +686,13 @@ function UILib.new(opts)
 
     -- Minimize
     local mb = Instance.new("TextButton")
-    mb.Size = UDim2.new(0, 22, 0, 22)
-    mb.Position = UDim2.new(1, -54, 0, 6)
+    mb.Size = UDim2.new(0, 20, 0, 20)
+    mb.Position = UDim2.new(1, -50, 0, 5)
     mb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     mb.Text = "-"
     mb.TextColor3 = Theme.TextPrimary
     mb.Font = Theme.FontBold
-    mb.TextSize = 14
+    mb.TextSize = 12
     mb.Parent = self.MainFrame
     local mbCorner = Instance.new("UICorner")
     mbCorner.CornerRadius = UDim.new(0, 4)
@@ -701,12 +701,12 @@ function UILib.new(opts)
     mb.MouseButton1Click:Connect(function()
         minimized = not minimized
         if minimized then
-            TweenMgr.Create(self.MainFrame, {Size = UDim2.new(0, 620, 0, 50)})
+            TweenMgr.Create(self.MainFrame, {Size = UDim2.new(0, 520, 0, 40)})
             self.ContentArea.Visible = false
             self.Sidebar.Visible = false
             mb.Text = "+"
         else
-            TweenMgr.Create(self.MainFrame, {Size = UDim2.new(0, 620, 0, 430)})
+            TweenMgr.Create(self.MainFrame, {Size = UDim2.new(0, 520, 0, 350)})
             task.delay(0.3, function()
                 self.ContentArea.Visible = true
                 self.Sidebar.Visible = true
@@ -742,9 +742,9 @@ function UILib:ToggleVisibility()
     self.IsVisible = not self.IsVisible
     if self.IsVisible then
         self.MainFrame.Visible = true
-        TweenMgr.Create(self.MainFrame, {Position = UDim2.new(0.5, -310, 0.5, -215), BackgroundTransparency = 0}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+        TweenMgr.Create(self.MainFrame, {Position = UDim2.new(0.5, -260, 0.5, -175), BackgroundTransparency = 0}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
     else
-        local tw = TweenMgr.Create(self.MainFrame, {Position = UDim2.new(0.5, -310, 0.5, -150), BackgroundTransparency = 1}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+        local tw = TweenMgr.Create(self.MainFrame, {Position = UDim2.new(0.5, -260, 0.5, -120), BackgroundTransparency = 1}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
         tw.Completed:Connect(function()
             if not self.IsVisible then self.MainFrame.Visible = false end
         end)
@@ -754,13 +754,13 @@ end
 function UILib:AddTab(name)
     local tab = {Name = name}
     local tb = Instance.new("TextButton")
-    tb.Size = UDim2.new(0.88, 0, 0, 33)
+    tb.Size = UDim2.new(0.88, 0, 0, 28)
     tb.BackgroundColor3 = Theme.Section
     tb.BackgroundTransparency = 1
     tb.Text = name
     tb.TextColor3 = Theme.TextSecondary
     tb.Font = Theme.Font
-    tb.TextSize = 13
+    tb.TextSize = 12
     tb.Parent = self.TabContainer
     local tbCorner = Instance.new("UICorner")
     tbCorner.CornerRadius = UDim.new(0, 6)
@@ -1061,7 +1061,7 @@ end)
 
 -- FOV Circle
 local fovFrame = Instance.new("Frame")
-fovFrame.Size = UDim2.new(0, 1, 0, 1)
+fovFrame.Size = UDim2.new(1, 0, 1, 0) -- Ocupa a tela toda para centralizar o filho
 fovFrame.BackgroundTransparency = 1
 fovFrame.Visible = false
 fovFrame.ZIndex = 5
@@ -1069,7 +1069,7 @@ fovFrame.Parent = UI.ScreenGui
 
 local fovCircle = Instance.new("Frame")
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0) -- Centralizado no fovFrame (tela)
 fovCircle.Size = UDim2.new(0, 300, 0, 300)
 fovCircle.BackgroundTransparency = 1
 fovCircle.BorderSizePixel = 0
@@ -1458,14 +1458,17 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 5, 0))
+        -- Calculo correto do ESP Vertical (Baseado na altura do personagem e distancia)
+        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3, 0))
+        local bottomPos, botVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, -3.5, 0))
+        
+        local boxH = math.abs(topPos.Y - bottomPos.Y)
+        local boxW = boxH * 0.6 -- Proporcao padrao de personagem
         local boxX = screenPos.X
-        local boxY = topVisible and topPos.Y or screenPos.Y - 50
-        local boxW = 36 + (50 - math.min(dist / 20, 50))
-        local boxH = screenPos.Y - boxY
+        local boxY = topPos.Y
 
-        if boxH < 10 then boxH = 50 end
-        if boxW < 20 then boxW = 20 end
+        if boxH < 10 then boxH = 20 end
+        if boxW < 5 then boxW = 10 end
 
         -- BOX
         if State.espBox and data.boxFrame then
@@ -1618,12 +1621,12 @@ end)
 -- ============================================================
 UI.IsVisible = true
 UI.MainFrame.BackgroundTransparency = 1
-UI.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -150)
+    UI.MainFrame.Position = UDim2.new(0.5, -260, 0.5, -120)
 
-TweenMgr.Create(UI.MainFrame, {
-    Position = UDim2.new(0.5, -310, 0.5, -215),
-    BackgroundTransparency = 0
-}, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+    TweenMgr.Create(UI.MainFrame, {
+        Position = UDim2.new(0.5, -260, 0.5, -175),
+        BackgroundTransparency = 0
+    }, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
 
 Notify("MIKASA HUB", "Focused Edition carregada! 4 tabs, tudo funcional.", 5)
 

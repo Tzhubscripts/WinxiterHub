@@ -1,11 +1,12 @@
 --[[
-    MANUS HUB v2.1 - Roblox UI Library + ESP System + Aimbot
+    MANUS HUB v2.2 - Roblox UI Library + ESP System + Aimbot + Silent Aim
 
     Features:
     - Tema Dark Modern com detalhes em vermelho (#ff2d2d)
     - Layout organizado: Logo, Search, Tabs, Player Info, FPS
     - ESP completo: Highlight, Box, Line (Tracer), Health Bar vertical esquerda, Name
     - Aimbot sticky: gruda no alvo no FOV ate ele morrer
+    - Silent Aim: hookmetamethod que desvia tiros pra o inimigo no FOV
     - Animacoes fluidas com TweenService
     - Sistema de Notificacoes
     - Save/Load de configuracoes
@@ -17,6 +18,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
@@ -267,6 +269,292 @@ function AimbotSystem.Disable()
     end
 end
 
+-- ===== SILENT AIM SYSTEM =====
+local SilentAimSystem = {}
+local silentAimEnabled = false
+local silentAimFOV = 300
+local silentAimTeamCheck = false
+local silentAimVisibleCheck = false
+local silentAimTargetPart = "HumanoidRootPart"
+local silentAimMethod = "Raycast"
+local silentAimHitChance = 100
+local silentAimPrediction = false
+local silentAimPredictionAmount = 0.165
+local silentAimShowFOV = false
+local silentAimShowTarget = false
+
+-- Expected arguments for each ray method
+local ExpectedArguments = {
+    FindPartOnRayWithIgnoreList = {
+        ArgCountRequired = 3,
+        Args = {"Instance", "Ray", "table", "boolean", "boolean"}
+    },
+    FindPartOnRayWithWhitelist = {
+        ArgCountRequired = 3,
+        Args = {"Instance", "Ray", "table", "boolean"}
+    },
+    FindPartOnRay = {
+        ArgCountRequired = 2,
+        Args = {"Instance", "Ray", "Instance", "boolean", "boolean"}
+    },
+    Raycast = {
+        ArgCountRequired = 3,
+        Args = {"Instance", "Vector3", "Vector3", "RaycastParams"}
+    }
+}
+
+local ValidTargetParts = {"Head", "HumanoidRootPart"}
+
+-- Calculate hit chance
+local function CalculateChance(percentage)
+    percentage = math.floor(percentage)
+    local chance = math.floor(Random.new():NextNumber(0, 1) * 100) / 100
+    return chance <= percentage / 100
+end
+
+-- Get mouse position
+local function getMousePosition()
+    return UserInputService:GetMouseLocation()
+end
+
+-- Check if player is visible (no walls blocking)
+local function IsPlayerVisible(player)
+    local playerChar = player.Character
+    local localChar = LocalPlayer.Character
+    if not playerChar or not localChar then return false end
+
+    local playerRoot = playerChar:FindFirstChild(silentAimTargetPart) or playerChar:FindFirstChild("HumanoidRootPart")
+    if not playerRoot then return false end
+
+    local castPoints = {playerRoot.Position, localChar, playerChar}
+    local ignoreList = {localChar, playerChar}
+    local obscuring = #Camera:GetPartsObscuringTarget(castPoints, ignoreList)
+
+    return obscuring == 0
+end
+
+-- Get closest player within silent aim FOV
+local function SilentAimGetClosestPlayer()
+    local closest = nil
+    local closestDist = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if silentAimTeamCheck and player.Team == LocalPlayer.Team then continue end
+
+        local char = player.Character
+        if not char then continue end
+
+        if silentAimVisibleCheck and not IsPlayerVisible(player) then continue end
+
+        local hmr = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not hmr or not humanoid or humanoid.Health <= 0 then continue end
+
+        local screenPos, onScreen = Camera:WorldToViewportPoint(hmr.Position)
+        if not onScreen then continue end
+
+        local mousePos = getMousePosition()
+        local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+        if dist <= silentAimFOV and dist < closestDist then
+            local targetPart = silentAimTargetPart == "Random" and char[ValidTargetParts[math.random(1, #ValidTargetParts)]] or char[silentAimTargetPart]
+            closest = targetPart
+            closestDist = dist
+        end
+    end
+
+    return closest
+end
+
+-- Get direction from origin to target
+local function getDirection(origin, position)
+    return (position - origin).Unit * 1000
+end
+
+-- Validate arguments for ray method
+local function ValidateArguments(args, rayMethod)
+    local matches = 0
+    if #args < rayMethod.ArgCountRequired then return false end
+    for pos, arg in next, args do
+        if typeof(arg) == rayMethod.Args[pos] then
+            matches = matches + 1
+        end
+    end
+    return matches >= rayMethod.ArgCountRequired
+end
+
+-- Activate silent aim hooks
+function SilentAimSystem.Enable()
+    if silentAimEnabled then return end
+    silentAimEnabled = true
+
+    -- HOOK: __namecall (intercept raycast methods)
+    local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+        local method = getnamecallmethod()
+        local args = {...}
+        local self = args[1]
+        local chance = CalculateChance(silentAimHitChance)
+
+        if silentAimEnabled and self == workspace and not checkcaller() and chance then
+            -- FindPartOnRayWithIgnoreList
+            if method == "FindPartOnRayWithIgnoreList" and silentAimMethod == method then
+                if ValidateArguments(args, ExpectedArguments.FindPartOnRayWithIgnoreList) then
+                    local hitPart = SilentAimGetClosestPlayer()
+                    if hitPart then
+                        local origin = args[2].Origin
+                        local direction = getDirection(origin, hitPart.Position)
+                        args[2] = Ray.new(origin, direction)
+                        return oldNamecall(unpack(args))
+                    end
+                end
+            -- FindPartOnRayWithWhitelist
+            elseif method == "FindPartOnRayWithWhitelist" and silentAimMethod == method then
+                if ValidateArguments(args, ExpectedArguments.FindPartOnRayWithWhitelist) then
+                    local hitPart = SilentAimGetClosestPlayer()
+                    if hitPart then
+                        local origin = args[2].Origin
+                        local direction = getDirection(origin, hitPart.Position)
+                        args[2] = Ray.new(origin, direction)
+                        return oldNamecall(unpack(args))
+                    end
+                end
+            -- FindPartOnRay
+            elseif (method == "FindPartOnRay" or method == "findPartOnRay") and silentAimMethod:lower() == method:lower() then
+                if ValidateArguments(args, ExpectedArguments.FindPartOnRay) then
+                    local hitPart = SilentAimGetClosestPlayer()
+                    if hitPart then
+                        local origin = args[2].Origin
+                        local direction = getDirection(origin, hitPart.Position)
+                        args[2] = Ray.new(origin, direction)
+                        return oldNamecall(unpack(args))
+                    end
+                end
+            -- Raycast
+            elseif method == "Raycast" and silentAimMethod == method then
+                if ValidateArguments(args, ExpectedArguments.Raycast) then
+                    local hitPart = SilentAimGetClosestPlayer()
+                    if hitPart then
+                        args[3] = getDirection(args[2], hitPart.Position)
+                        return oldNamecall(unpack(args))
+                    end
+                end
+            end
+        end
+
+        return oldNamecall(...)
+    end))
+
+    -- HOOK: __index (intercept Mouse.Hit / Mouse.Target)
+    local oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, index)
+        if self == mouse and not checkcaller() and silentAimEnabled and silentAimMethod == "Mouse.Hit/Target" then
+            local hitPart = SilentAimGetClosestPlayer()
+            if hitPart then
+                if index == "Target" or index == "target" then
+                    return hitPart
+                elseif index == "Hit" or index == "hit" then
+                    if silentAimPrediction then
+                        return hitPart.CFrame + (hitPart.Velocity * silentAimPredictionAmount)
+                    else
+                        return hitPart.CFrame
+                    end
+                elseif index == "X" or index == "x" then
+                    return self.X
+                elseif index == "Y" or index == "y" then
+                    return self.Y
+                elseif index == "UnitRay" then
+                    return Ray.new(self.Origin, (self.Hit - self.Origin).Unit)
+                end
+            end
+        end
+
+        return oldIndex(self, index)
+    end))
+
+    -- Store oldIndex globally so it doesn't get GC'd
+    _G._SA_OldIndex = oldIndex
+    _G._SA_OldNamecall = oldNamecall
+
+    NotificationSystem.Notify("Combat", "Silent Aim ativado! Method: " .. silentAimMethod, 3)
+end
+
+function SilentAimSystem.Disable()
+    if not silentAimEnabled then return end
+    silentAimEnabled = false
+
+    -- Restore hooks by reloading with silentAimEnabled = false
+    local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+        return _G._SA_OldNamecall(...)
+    end))
+
+    local oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, index)
+        if self == mouse and not silentAimEnabled then
+            return _G._SA_OldIndex(self, index)
+        end
+        return _G._SA_OldIndex(self, index)
+    end))
+
+    NotificationSystem.Notify("Combat", "Silent Aim desativado.", 3)
+end
+
+-- FOV circle for silent aim (using Drawing or Frame fallback)
+local silentAimFOVCircle = nil
+local silentAimFOVVisible = false
+local silentAimTargetSquare = nil
+
+function SilentAimSystem.UpdateFOV()
+    local espGui = LocalPlayer.PlayerGui:FindFirstChild("ManusHub_ESP")
+    if not espGui then return end
+
+    if silentAimFOVVisible and not silentAimShowFOV then
+        if silentAimFOVCircle then
+            silentAimFOVCircle:Destroy()
+            silentAimFOVCircle = nil
+        end
+        silentAimFOVVisible = false
+    elseif not silentAimFOVVisible and silentAimShowFOV then
+        silentAimFOVVisible = true
+        silentAimFOVCircle = Instance.new("Frame")
+        silentAimFOVCircle.Name = "SilentAimFOV"
+        silentAimFOVCircle.BackgroundTransparency = 1
+        silentAimFOVCircle.BorderSizePixel = 0
+        silentAimFOVCircle.Size = UDim2.new(0, silentAimFOV * 2, 0, silentAimFOV * 2)
+        silentAimFOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+        silentAimFOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        silentAimFOVCircle.Parent = espGui
+
+        local uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(1, 0)
+        uiCorner.Parent = silentAimFOVCircle
+
+        local uiStroke = Instance.new("UIStroke")
+        uiStroke.Color = Color3.fromRGB(54, 57, 241)
+        uiStroke.Thickness = 1.5
+        uiStroke.Transparency = 0.4
+        uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        uiStroke.Parent = silentAimFOVCircle
+    end
+
+    -- Update FOV circle size
+    if silentAimFOVCircle then
+        silentAimFOVCircle.Size = UDim2.new(0, silentAimFOV * 2, 0, silentAimFOV * 2)
+    end
+
+    -- Target square (shows the locked target position)
+    if silentAimShowTarget and not silentAimTargetSquare then
+        silentAimTargetSquare = Instance.new("Frame")
+        silentAimTargetSquare.Name = "SilentAimTarget"
+        silentAimTargetSquare.Size = UDim2.new(0, 20, 0, 20)
+        silentAimTargetSquare.BackgroundColor3 = Color3.fromRGB(54, 57, 241)
+        silentAimTargetSquare.BackgroundTransparency = 0.3
+        silentAimTargetSquare.BorderSizePixel = 0
+        silentAimTargetSquare.AnchorPoint = Vector2.new(0.5, 0.5)
+        silentAimTargetSquare.Parent = espGui
+    elseif not silentAimShowTarget and silentAimTargetSquare then
+        silentAimTargetSquare:Destroy()
+        silentAimTargetSquare = nil
+    end
+end
+
 -- ===== ESP SYSTEM (Highlight + Box + Line + Health Bar Vertical Left) =====
 local ESPSystem = {}
 local espInstances = {}
@@ -429,8 +717,8 @@ function ESPSystem:_AddPlayer(player, espGui)
     healthBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     healthBarFrame.BackgroundTransparency = 0.2
     healthBarFrame.BorderSizePixel = 0
-    healthBarFrame.Size = UDim2.new(0, 10, 1, 0)  -- vertical bar
-    healthBarFrame.Position = UDim2.new(0, 0, 0, 0)  -- left side
+    healthBarFrame.Size = UDim2.new(0, 10, 1, 0)
+    healthBarFrame.Position = UDim2.new(0, 0, 0, 0)
     local hbCorner = Instance.new("UICorner")
     hbCorner.CornerRadius = UDim.new(0, 3)
     hbCorner.Parent = healthBarFrame
@@ -443,7 +731,7 @@ function ESPSystem:_AddPlayer(player, espGui)
     healthFill.BorderSizePixel = 0
     healthFill.Size = UDim2.new(1, 0, 1, 0)
     healthFill.Position = UDim2.new(0, 0, 0, 0)
-    healthFill.AnchorPoint = Vector2.new(0, 1)  -- anchor at bottom
+    healthFill.AnchorPoint = Vector2.new(0, 1)
     local fillCorner = Instance.new("UICorner")
     fillCorner.CornerRadius = UDim.new(0, 3)
     fillCorner.Parent = healthFill
@@ -661,7 +949,6 @@ function ESPSystem:_UpdatePlayer(player, instances)
             healthColor = Color3.fromRGB(255, 165, 0)
         end
         instances.HealthFill.BackgroundColor3 = healthColor
-        -- Vertical: scale Y to health percent, position Y to 1 - healthPercent (fill from bottom)
         instances.HealthFill.Size = UDim2.new(1, 0, healthPercent, 0)
         instances.HealthFill.Position = UDim2.new(0, 0, 1 - healthPercent, 0)
     end
@@ -720,7 +1007,7 @@ function ESPSystem:_UpdatePlayer(player, instances)
     end
 end
 
--- ===== FOV CIRCLE =====
+-- ===== FOV CIRCLE (for Aimbot) =====
 local FOVCircle = {}
 local fovCircleInstance = nil
 local fovCircleVisible = false
@@ -1710,7 +1997,7 @@ end
 -- ===== MAIN EXECUTION =====
 local UI = UILibrary.new({
     Title = "MANUS HUB",
-    SubTitle = "v2.1 | UI + ESP + Aimbot"
+    SubTitle = "v2.2 | UI + ESP + Aimbot + Silent Aim"
 })
 
 -- Tabs organized
@@ -1744,11 +2031,6 @@ end)
 
 CreateToggle(VisualTab.Frame, "ESP Health Bar", false, function(state)
     espConfig.ShowHealthBar = state
-    if state then
-        NotificationSystem.Notify("ESP", "Barra de vida vertical ativada!", 2)
-    else
-        NotificationSystem.Notify("ESP", "Barra de vida desativada.", 2)
-    end
 end)
 
 CreateToggle(VisualTab.Frame, "Team Check", false, function(state)
@@ -1798,7 +2080,7 @@ CreateToggle(VisualTab.Frame, "Full Bright", false, function(state)
     end
 end)
 
--- ===== TAB: COMBAT (AIMBOT STICKY) =====
+-- ===== TAB: COMBAT (AIMBOT + SILENT AIM) =====
 CreateSection(CombatTab.Frame, "Aimbot (Sticky Mode)")
 
 CreateToggle(CombatTab.Frame, "Aimbot", false, function(state)
@@ -1816,6 +2098,60 @@ end)
 
 CreateSlider(CombatTab.Frame, "Aimbot Smoothness", 1, 10, 3, function(v)
     aimbotSmooth = v
+end)
+
+CreateSection(CombatTab.Frame, "Silent Aim")
+
+CreateToggle(CombatTab.Frame, "Silent Aim", false, function(state)
+    if state then
+        SilentAimSystem.Enable()
+    else
+        SilentAimSystem.Disable()
+    end
+end)
+
+CreateDropdown(CombatTab.Frame, "Silent Aim Method", {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"}, function(s)
+    silentAimMethod = s
+    NotificationSystem.Notify("Combat", "Metodo: " .. s, 2)
+end)
+
+CreateDropdown(CombatTab.Frame, "Target Part", {"HumanoidRootPart", "Head", "Random"}, function(s)
+    silentAimTargetPart = s
+end)
+
+CreateToggle(CombatTab.Frame, "Team Check (Silent)", false, function(state)
+    silentAimTeamCheck = state
+end)
+
+CreateToggle(CombatTab.Frame, "Visible Check (Silent)", false, function(state)
+    silentAimVisibleCheck = state
+end)
+
+CreateSlider(CombatTab.Frame, "Silent Aim FOV", 50, 360, 300, function(v)
+    silentAimFOV = v
+    SilentAimSystem.UpdateFOV()
+end)
+
+CreateSlider(CombatTab.Frame, "Hit Chance", 0, 100, 100, function(v)
+    silentAimHitChance = v
+end)
+
+CreateToggle(CombatTab.Frame, "Mouse Prediction", false, function(state)
+    silentAimPrediction = state
+end)
+
+CreateSlider(CombatTab.Frame, "Prediction Amount", 0, 100, 17, function(v)
+    silentAimPredictionAmount = v / 100
+end)
+
+CreateToggle(CombatTab.Frame, "Show Silent FOV", false, function(state)
+    silentAimShowFOV = state
+    SilentAimSystem.UpdateFOV()
+end)
+
+CreateToggle(CombatTab.Frame, "Show Silent Target", false, function(state)
+    silentAimShowTarget = state
+    SilentAimSystem.UpdateFOV()
 end)
 
 CreateSection(CombatTab.Frame, "Weapon Mods")
@@ -1920,7 +2256,7 @@ end)
 CreateSection(SettingsTab.Frame, "Configuracoes da UI")
 
 CreateButton(SettingsTab.Frame, "Salvar Configuracoes", function()
-    SettingsSystem.Save({espEnabled = espConfig.Enabled, aimbotEnabled = aimbotActive})
+    SettingsSystem.Save({espEnabled = espConfig.Enabled, aimbotEnabled = aimbotActive, silentAimEnabled = silentAimEnabled})
     NotificationSystem.Notify("Settings", "Configuracoes salvas com sucesso!", 3)
 end)
 
@@ -1972,9 +2308,10 @@ local function addLog(text, color)
     logScroll.ScrollBarPosition = logScroll.CanvasPosition.Y + 100
 end
 
-addLog("MANUS HUB v2.1 inicializado", Theme.Accent)
+addLog("MANUS HUB v2.2 inicializado", Theme.Accent)
 addLog("ESP System loaded (Highlight + Box + Line + HealthBar)", Color3.fromRGB(0, 255, 100))
 addLog("Aimbot System loaded (Sticky Mode)", Color3.fromRGB(0, 255, 100))
+addLog("Silent Aim System loaded (hookmetamethod)", Color3.fromRGB(0, 255, 100))
 addLog("UI Library ready", Color3.fromRGB(0, 255, 100))
 
 -- ===== AIMBOT LOOP (RenderStepped) =====
@@ -1983,6 +2320,24 @@ RunService.RenderStepped:Connect(function()
         local target = AimbotSystem:getStickyTarget()
         if target then
             AimbotSystem:aimAt(target)
+        end
+    end
+end)
+
+-- ===== SILENT AIM TARGET VISUALIZER (RenderStepped) =====
+RunService.RenderStepped:Connect(function()
+    if silentAimEnabled and silentAimShowTarget then
+        local target = SilentAimGetClosestPlayer()
+        if target then
+            local rootToViewport, isOnScreen = Camera:WorldToViewportPoint(target.Position)
+            if silentAimTargetSquare then
+                silentAimTargetSquare.Visible = isOnScreen
+                silentAimTargetSquare.Position = UDim2.new(0, rootToViewport.X, 0, rootToViewport.Y)
+            end
+        else
+            if silentAimTargetSquare then
+                silentAimTargetSquare.Visible = false
+            end
         end
     end
 end)
@@ -1997,6 +2352,6 @@ TweenManager:Create(UI.MainFrame, {
     BackgroundTransparency = 0
 }, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
 
-NotificationSystem.Notify("MANUS HUB", "v2.1 carregada! Aimbot Sticky + ESP completo.", 5)
+NotificationSystem.Notify("MANUS HUB", "v2.2 carregada! Aimbot Sticky + Silent Aim + ESP completo.", 5)
 
 return UI

@@ -1293,7 +1293,7 @@ local function AddESP(player)
         NumberSequenceKeypoint.new(0, 0),
         NumberSequenceKeypoint.new(1, 1)
     })
-    grad.Rotation = 0
+    grad.Rotation = 90 -- Roda 90 graus para o gradiente ficar "em pe" (transparente no topo)
     grad.Parent = botStroke
 
     -- Side lines
@@ -1458,17 +1458,17 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Calculo correto do ESP Vertical (Baseado na altura do personagem e distancia)
-        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3, 0))
-        local bottomPos, botVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, -3.5, 0))
+        -- Calculo do ESP Vertical ajustado para o corpo (Centralizado no HRP)
+        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 2.8, 0))
+        local bottomPos, botVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, -3.2, 0))
         
         local boxH = math.abs(topPos.Y - bottomPos.Y)
-        local boxW = boxH * 0.6 -- Proporcao padrao de personagem
+        local boxW = boxH * 0.75 -- Aumentado de 0.6 para 0.75 para nao ficar tao fino
         local boxX = screenPos.X
         local boxY = topPos.Y
 
         if boxH < 10 then boxH = 20 end
-        if boxW < 5 then boxW = 10 end
+        if boxW < 10 then boxW = 15 end -- Minimo aumentado
 
         -- BOX
         if State.espBox and data.boxFrame then

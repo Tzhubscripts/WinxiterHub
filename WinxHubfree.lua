@@ -949,6 +949,18 @@ local function getAlivePlayers()
     return targets
 end
 
+-- Verifica se uma Part esta visivel (sem parede na frente)
+local function isVisible(part)
+    local direction = part.Position - Camera.CFrame.Position
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LocalPlayer.Character}
+    params.IgnoreWater = true
+    local result = Workspace:Raycast(Camera.CFrame.Position, direction, params)
+    if not result then return true end
+    return result.Instance == part or result.Instance:IsDescendantOf(part.Parent)
+end
+
 local function findClosestTarget(fovRadius)
     local closest = nil
     local closestDist = math.huge
@@ -972,23 +984,8 @@ local function findClosestTarget(fovRadius)
         local distance = (screenPos2D - center).Magnitude
 
         if distance <= fovRadius and distance < closestDist then
-            -- Check visibility with raycast
-            if State.aimbotHeadOnly then
-                local head = char:FindFirstChild("Head")
-                if head then
-                    local direction = head.Position - Camera.CFrame.Position
-                    local params = RaycastParams.new()
-                    params.FilterType = Enum.RaycastFilterType.Blacklist
-                    params.FilterDescendantsInstances = {LocalPlayer.Character}
-                    params.IgnoreWater = true
-
-                    local result = Workspace:Raycast(Camera.CFrame.Position, direction, params)
-                    if (not result) or result.Instance == head or result.Instance:IsDescendantOf(head.Parent) then
-                        closest = head
-                        closestDist = distance
-                    end
-                end
-            else
+            -- Verifica parede para qualquer modo (Head Only ou HumanoidRootPart)
+            if isVisible(part) then
                 closest = part
                 closestDist = distance
             end
@@ -1007,10 +1004,15 @@ RunService.RenderStepped:Connect(function()
 
     local target = nil
 
-    -- Sticky mode
+    -- Sticky mode: mantém o alvo atual, mas abandona se morreu ou foi atrás de parede
     if State.aimbotSticky and State.aimbotCurrentTarget and State.aimbotCurrentTarget.Parent then
         local humanoid = State.aimbotCurrentTarget.Parent:FindFirstChildOfClass("Humanoid")
-        if humanoid and humanoid.Health > 0 then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(State.aimbotCurrentTarget.Position)
+        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+        if humanoid and humanoid.Health > 0 and onScreen
+            and screenDist <= State.fovRadius
+            and isVisible(State.aimbotCurrentTarget) then
             target = State.aimbotCurrentTarget
         else
             State.aimbotCurrentTarget = nil
@@ -1031,7 +1033,9 @@ RunService.RenderStepped:Connect(function()
         if math.random(1, 100) <= State.aimbotHitChance then
             local currentPos = Camera.CFrame.Position
             local targetPos = target.Position
-            local lerpFactor = 1 / State.aimbotSmoothness
+            -- lerpFactor: Smoothness 1 = instantaneo, 10 = muito suave
+            -- Dividir por um valor menor deixa o aimbot mais rapido/responsivo
+            local lerpFactor = math.clamp(1 / (State.aimbotSmoothness * 0.5), 0.05, 1)
             local newCFrame = CFrame.new(currentPos, targetPos)
             Camera.CFrame = Camera.CFrame:Lerp(newCFrame, lerpFactor)
         end

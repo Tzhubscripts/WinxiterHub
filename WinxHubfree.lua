@@ -714,7 +714,7 @@ local function CreateToggle(parent, text, default, callback)
     return toggleFrame
 end
 
--- Slider
+-- Slider Corrigido
 local function CreateSlider(parent, text, min, max, default, callback)
     local sliderFrame = Instance.new("Frame")
     sliderFrame.Name = text .. "SliderFrame"
@@ -756,12 +756,14 @@ local function CreateSlider(parent, text, min, max, default, callback)
     valueLabel.TextXAlignment = Enum.TextXAlignment.Right
     valueLabel.Parent = sliderFrame
     
-    local sliderBg = Instance.new("Frame")
+    local sliderBg = Instance.new("TextButton") -- Usando TextButton para melhor detecção de clique
     sliderBg.Name = "SliderBg"
     sliderBg.Size = UDim2.new(1, -30, 0, 6)
     sliderBg.Position = UDim2.new(0, 15, 0, 35)
     sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     sliderBg.BorderSizePixel = 0
+    sliderBg.Text = ""
+    sliderBg.AutoButtonColor = false
     sliderBg.Parent = sliderFrame
     
     local barCorner = Instance.new("UICorner")
@@ -781,7 +783,7 @@ local function CreateSlider(parent, text, min, max, default, callback)
     
     local dragging = false
     
-    local function move(input)
+    local function update(input)
         local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
         local value = math.floor(min + (max - min) * pos)
         
@@ -793,22 +795,22 @@ local function CreateSlider(parent, text, min, max, default, callback)
         end
     end
     
-    sliderFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            move(input)
+            update(input)
         end
     end)
     
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
     
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            move(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
         end
     end)
     
@@ -1237,9 +1239,17 @@ CreateButton(PlayerTab.Frame, "Reset Character", function() print("Resetting..."
 CreateSection(VisualTab.Frame, "ESP Settings")
 CreateToggle(VisualTab.Frame, "Enable ESP", false, function(state) print("ESP:", state) end)
 CreateToggle(VisualTab.Frame, "ESP Box", false, function(state) print("ESP Box:", state) end)
+CreateToggle(VisualTab.Frame, "ESP Health Bar", false, function(state) 
+    print("Health Bar:", state)
+    NotificationSystem.Notify("Visual", "Barra de vida " .. (state and "ativada" or "desativada"), 2)
+end)
 CreateToggle(VisualTab.Frame, "ESP Tracers", false, function(state) print("Tracers:", state) end)
 CreateToggle(VisualTab.Frame, "ESP Names", false, function(state) print("Names:", state) end)
 CreateColorPicker(VisualTab.Frame, "ESP Color", Theme.Accent, function(color) print("ESP Color:", color) end)
+
+CreateSection(VisualTab.Frame, "ESP Customization")
+CreateSlider(VisualTab.Frame, "ESP Distance", 100, 5000, 1000, function(v) print("Dist:", v) end)
+CreateDropdown(VisualTab.Frame, "Health Bar Side", {"Left", "Right"}, function(s) print("Side:", s) end)
 
 CreateSection(VisualTab.Frame, "World")
 CreateSlider(VisualTab.Frame, "Field of View", 70, 120, 70, function(v) print("World FOV:", v) end)
@@ -1260,7 +1270,7 @@ CreateTextBox(SettingsTab.Frame, "Nome de Usuário", "Digite seu nome", function
 end)
 
 -- Notificação Inicial
-NotificationSystem.Notify("BIEL HUB", "Interface carregada com sucesso! Divirta-se.", 5)
+NotificationSystem.Notify("MANUS HUB", "Interface carregada com sucesso! Divirta-se.", 5)
 
     -- Ativar a UI automaticamente no início
     UI.IsVisible = true

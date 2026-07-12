@@ -1290,10 +1290,10 @@ local function AddESP(player)
         ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     })
     grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1)
+        NumberSequenceKeypoint.new(0, 1), -- Invertido: transparente embaixo
+        NumberSequenceKeypoint.new(1, 0)  -- Invertido: solido em cima (no botStroke que fica na base)
     })
-    grad.Rotation = 90 -- Roda 90 graus para o gradiente ficar "em pe" (transparente no topo)
+    grad.Rotation = 90
     grad.Parent = botStroke
 
     -- Side lines
@@ -1315,11 +1315,11 @@ local function AddESP(player)
     rightLine.ZIndex = 7
     rightLine.Parent = boxBg
 
-    -- Line (tracer)
+    -- Line (tracer) - Top Down
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0, 2, 0, 0)
-    line.Position = UDim2.new(0.5, 0, 1, 0)
-    line.AnchorPoint = Vector2.new(0.5, 1)
+    line.Position = UDim2.new(0.5, 0, 0, 0) -- Comeca no topo da tela
+    line.AnchorPoint = Vector2.new(0.5, 0)
     line.BackgroundTransparency = 1
     line.BorderSizePixel = 0
     line.Visible = false
@@ -1458,17 +1458,17 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        -- Calculo do ESP Vertical ajustado para o corpo (Centralizado no HRP)
-        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 2.8, 0))
+        -- Calculo do ESP Vertical (Alinhado com a base/pes)
+        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3.2, 0))
         local bottomPos, botVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, -3.2, 0))
         
         local boxH = math.abs(topPos.Y - bottomPos.Y)
-        local boxW = boxH * 0.75 -- Aumentado de 0.6 para 0.75 para nao ficar tao fino
+        local boxW = boxH * 0.8 -- Largura um pouco maior para cobrir o boneco
         local boxX = screenPos.X
         local boxY = topPos.Y
 
         if boxH < 10 then boxH = 20 end
-        if boxW < 10 then boxW = 15 end -- Minimo aumentado
+        if boxW < 10 then boxW = 15 end
 
         -- BOX
         if State.espBox and data.boxFrame then
@@ -1490,16 +1490,14 @@ RunService.RenderStepped:Connect(function()
             })
         end
 
-        -- LINE
+        -- LINE (Tracer Top-Down: do topo da tela ate a cabeça)
         if State.espLine and data.lineFrame then
             data.lineFrame.Visible = true
-            data.lineFrame.Position = UDim2.new(0, boxX, 1, 0)
+            data.lineFrame.Position = UDim2.new(0, boxX, 0, 0)
             data.lineFrame.BackgroundColor3 = State.espColor
             data.lineFrame.BackgroundTransparency = 0.3
 
-            local lineEndY = boxY + boxH
-            local screenH = Camera.ViewportSize.Y
-            local lineH = screenH - lineEndY
+            local lineH = boxY -- Distancia do topo ate o topo da caixa (cabeca)
             if lineH > 0 then
                 data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, lineH)
             else

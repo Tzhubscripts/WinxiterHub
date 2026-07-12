@@ -11,6 +11,10 @@
     - Config sliders for FOV and line thickness
 ]]
 
+if not game or not game.GetService then
+    error("Este script foi escrito para Roblox/Luau e nao executa em Lua padrao.")
+end
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -22,6 +26,15 @@ local Camera = Workspace.CurrentCamera
 
 local LocalPlayer = Players.LocalPlayer
 local LocalMouse = LocalPlayer:GetMouse()
+
+local function CopyToClipboard(text)
+    local clip = setclipboard or toclipboard
+    if not clip then
+        return false
+    end
+
+    return pcall(clip, text)
+end
 
 -- ===== STATE =====
 local State = {
@@ -46,6 +59,21 @@ local State = {
     lineThickness = 2,
     startTime = tick(),
 }
+
+-- Serializa State para JSON de forma segura (evita tipos nao-serializaveis do Roblox)
+local function SerializeState()
+    local safe = {}
+    for k, v in pairs(State) do
+        local t = typeof(v)
+        if t == "boolean" or t == "number" or t == "string" then
+            safe[k] = v
+        elseif t == "Color3" then
+            safe[k] = {r = math.floor(v.R * 255), g = math.floor(v.G * 255), b = math.floor(v.B * 255)}
+        end
+        -- Ignora Instance, nil, etc.
+    end
+    return HttpService:JSONEncode(safe)
+end
 
 -- ===== THEME =====
 local Theme = {
@@ -105,10 +133,11 @@ end
 
 -- ===== NOTIFICATION =====
 local NotifyList = {}
+local _notifySG = nil -- sera preenchido apos criar UI.ScreenGui
 function Notify(title, text, dur)
     dur = dur or 5
-    local sg = CoreGui:FindFirstChildWhichIsA("ScreenGui") or LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
-    if not sg then return end
+    local sg = _notifySG
+    if not sg or not sg.Parent then return end
     local nf = Instance.new("Frame")
     nf.Size = UDim2.new(0, 280, 0, 85)
     nf.Position = UDim2.new(1, 20, 1, -100 - (#NotifyList * 95))
@@ -385,6 +414,7 @@ local function CreateInfoLabel(parent, text, value, valueColor)
     us.Thickness = 1
     us.Parent = ifr
     local tl = Instance.new("TextLabel")
+    tl.Name = "TitleLabel"
     tl.Size = UDim2.new(0.6, 0, 1, 0)
     tl.Position = UDim2.new(0, 15, 0, 0)
     tl.BackgroundTransparency = 1
@@ -395,6 +425,7 @@ local function CreateInfoLabel(parent, text, value, valueColor)
     tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.Parent = ifr
     local va = Instance.new("TextLabel")
+    va.Name = "ValueLabel"
     va.Size = UDim2.new(0.35, 0, 1, 0)
     va.Position = UDim2.new(0.6, 10, 0, 0)
     va.BackgroundTransparency = 1
@@ -433,6 +464,7 @@ function UILib.new(opts)
     if not ok then
         self.ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     end
+    _notifySG = self.ScreenGui -- Permite que Notify use a ScreenGui correta
 
     -- Main Frame
     self.MainFrame = Instance.new("Frame")
@@ -740,6 +772,8 @@ function UILib:AddTab(name)
     tf.BorderSizePixel = 0
     tf.ScrollBarThickness = 3
     tf.ScrollBarImageColor3 = Theme.Accent
+    tf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    tf.CanvasSize = UDim2.new(0, 0, 0, 0)
     tf.Visible = false
     tf.Parent = self.ContentArea
     local cl = Instance.new("UIListLayout")
@@ -805,18 +839,23 @@ RunService.RenderStepped:Connect(function()
     homeFrames = homeFrames + 1
     local now = tick()
     if now - homeLast >= 1 then
-        local vf = fpsInfoLabel:FindFirstChildWhichIsA("TextLabel")
+        local serverValue = serverLabel:FindFirstChild("ValueLabel")
+        if serverValue then
+            serverValue.Text = game.JobId ~= "" and "Conectado" or "Studio"
+        end
+
+        local vf = fpsInfoLabel:FindFirstChild("ValueLabel")
         if vf then vf.Text = tostring(homeFrames) end
 
         local ping = math.floor(math.random(15, 60))
-        local pv = pingLabel:FindFirstChildWhichIsA("TextLabel")
+        local pv = pingLabel:FindFirstChild("ValueLabel")
         if pv then pv.Text = ping .. "ms" end
 
         local elapsed = math.floor(now - State.startTime)
         local hours = math.floor(elapsed / 3600)
         local mins = math.floor((elapsed % 3600) / 60)
         local secs = elapsed % 60
-        local uv = uptimeLabel:FindFirstChildWhichIsA("TextLabel")
+        local uv = uptimeLabel:FindFirstChild("ValueLabel")
         if uv then uv.Text = string.format("%02d:%02d:%02d", hours, mins, secs) end
 
         homeFrames = 0
@@ -831,7 +870,7 @@ local dpsInfoLabel = CreateInfoLabel(HomeTab.Frame, "DPS Status", "0", Color3.fr
 RunService.RenderStepped:Connect(function()
     local now = tick()
     if now - dpsStartTime >= 1 then
-        local vf = dpsInfoLabel:FindFirstChildWhichIsA("TextLabel")
+        local vf = dpsInfoLabel:FindFirstChild("ValueLabel")
         if vf then vf.Text = tostring(dpsCount) end
         dpsCount = 0
         dpsStartTime = now
@@ -937,10 +976,14 @@ local function findClosestTarget(fovRadius)
             if State.aimbotHeadOnly then
                 local head = char:FindFirstChild("Head")
                 if head then
-                    local direction = (head.Position - Camera.CFrame.Position).Unit
-                    local ray = Ray.new(Camera.CFrame.Position, direction * 500)
-                    local hit, hitPos, hitNorm = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
-                    if hit and (hit == head or hit:IsDescendantOf(head.Parent)) then
+                    local direction = head.Position - Camera.CFrame.Position
+                    local params = RaycastParams.new()
+                    params.FilterType = Enum.RaycastFilterType.Blacklist
+                    params.FilterDescendantsInstances = {LocalPlayer.Character}
+                    params.IgnoreWater = true
+
+                    local result = Workspace:Raycast(Camera.CFrame.Position, direction, params)
+                    if (not result) or result.Instance == head or result.Instance:IsDescendantOf(head.Parent) then
                         closest = head
                         closestDist = distance
                     end
@@ -1030,6 +1073,10 @@ fovCircle.Visible = false
 fovCircle.ZIndex = 5
 fovCircle.Parent = fovFrame
 
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(1, 0)
+fovCorner.Parent = fovCircle
+
 local fovStroke = Instance.new("UIStroke")
 fovStroke.Color = Theme.Accent
 fovStroke.Thickness = 1
@@ -1052,6 +1099,11 @@ end)
 -- TAB 3: ESP (100% FUNCIONAL)
 -- ============================================================
 CreateSection(ESPTab.Frame, "ESP")
+
+CreateToggle(ESPTab.Frame, "ESP", false, function(s)
+    State.espEnabled = s
+    Logs.Add("ESP: " .. tostring(s))
+end)
 
 CreateToggle(ESPTab.Frame, "ESP Box", false, function(s)
     State.espBox = s
@@ -1367,7 +1419,16 @@ end)
 
 -- ESP Main Loop
 RunService.RenderStepped:Connect(function()
-    if not State.espEnabled then return end
+    if not State.espEnabled then
+        for _, data in pairs(espData) do
+            if data.boxFrame then data.boxFrame.Visible = false end
+            if data.lineFrame then data.lineFrame.Visible = false end
+            if data.healthBg then data.healthBg.Visible = false end
+            if data.nameLabel then data.nameLabel.Visible = false end
+            if data.healthLabel then data.healthLabel.Visible = false end
+        end
+        return
+    end
 
     for player, data in pairs(espData) do
         if not player.Character then continue end
@@ -1497,10 +1558,15 @@ end)
 CreateSection(ConfigTab.Frame, "Actions")
 
 CreateButton(ConfigTab.Frame, "Salvar Config", function()
-    local data = HttpService:JSONEncode(State)
-    setclipboard(data)
-    Logs.Add("Config salva no clipboard")
-    Notify("Config", "Configuracoes copiadas!", 3)
+    local data = SerializeState()
+    local ok = CopyToClipboard(data)
+    if ok then
+        Logs.Add("Config salva no clipboard")
+        Notify("Config", "Configuracoes copiadas!", 3)
+    else
+        Logs.Add("Clipboard indisponivel neste executor")
+        Notify("Config", "Clipboard indisponivel neste executor.", 3)
+    end
 end)
 
 CreateButton(ConfigTab.Frame, "Carregar Config", function()
@@ -1510,12 +1576,15 @@ end)
 
 CreateButton(ConfigTab.Frame, "Reset Config", function()
     State.aimbotEnabled = false
+    State.aimbotHeadOnly = true
     State.aimbotFOV = 150
     State.aimbotSmoothness = 3
     State.aimbotSticky = true
+    State.aimbotCurrentTarget = nil
     State.aimbotHitChance = 100
     State.noRecoilEnabled = false
     State.showFOV = false
+    State.espEnabled = false
     State.espBox = false
     State.espLine = false
     State.espHealth = false
@@ -1529,10 +1598,15 @@ CreateButton(ConfigTab.Frame, "Reset Config", function()
 end)
 
 CreateButton(ConfigTab.Frame, "Export JSON", function()
-    local data = HttpService:JSONEncode(State)
-    setclipboard(data)
-    Logs.Add("JSON exportado")
-    Notify("Config", "JSON copiado!", 3)
+    local data = SerializeState()
+    local ok = CopyToClipboard(data)
+    if ok then
+        Logs.Add("JSON exportado")
+        Notify("Config", "JSON copiado!", 3)
+    else
+        Logs.Add("Clipboard indisponivel neste executor")
+        Notify("Config", "Clipboard indisponivel neste executor.", 3)
+    end
 end)
 
 -- ============================================================

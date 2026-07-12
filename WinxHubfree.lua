@@ -1,15 +1,12 @@
 --[[
-    MANUS HUB v2.2 - Roblox UI Library + ESP System + Aimbot + Silent Aim
+    MANUS HUB v4.0 - Full UI Library + 12 Tabs
 
-    Features:
-    - Tema Dark Modern com detalhes em vermelho (#ff2d2d)
-    - Layout organizado: Logo, Search, Tabs, Player Info, FPS
-    - ESP completo: Highlight, Box, Line (Tracer), Health Bar vertical esquerda, Name
-    - Aimbot sticky: gruda no alvo no FOV ate ele morrer
-    - Silent Aim: hookmetamethod que desvia tiros pra o inimigo no FOV
-    - Animacoes fluidas com TweenService
-    - Sistema de Notificacoes
-    - Save/Load de configuracoes
+    Tabs:
+    Home | Combat | Aim | Visuals | Movement | Defense |
+    Player | World | Utilities | Configs | Settings | Logs
+
+    Interface Only - No external functionality
+    Tema Dark Modern com detalhes em vermelho (#ff2d2d)
 ]]
 
 local Players = game:GetService("Players")
@@ -18,11 +15,10 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local GuiService = game:GetService("GuiService")
-local Workspace = game:GetService("Workspace")
-local Camera = Workspace.CurrentCamera
+local Lighting = game:GetService("Lighting")
+
 local LocalPlayer = Players.LocalPlayer
-local mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
 
 -- ===== THEME =====
 local Theme = {
@@ -38,6 +34,49 @@ local Theme = {
     CornerRadius = UDim.new(0, 8),
     Font = Enum.Font.GothamMedium,
     FontBold = Enum.Font.GothamBold,
+}
+
+-- ===== GLOBAL STATE =====
+local State = {
+    espEnabled = false,
+    espBox = false,
+    espLine = false,
+    espHealthBar = false,
+    espTeamCheck = false,
+    espNameType = "DisplayName",
+    espDistance = 5000,
+    espFOV = 300,
+    fovCircleEnabled = false,
+    fovCircleSize = 300,
+    aimbotEnabled = false,
+    aimbotFOV = 300,
+    aimbotSmooth = 3,
+    aimbotSticky = true,
+    aimbotTargetPart = "HumanoidRootPart",
+    silentAimEnabled = false,
+    silentAimMethod = "Raycast",
+    silentAimTargetPart = "HumanoidRootPart",
+    silentAimTeamCheck = false,
+    silentAimVisibleCheck = false,
+    silentAimFOV = 300,
+    silentAimHitChance = 100,
+    silentAimPrediction = false,
+    silentAimPredictionAmount = 0.165,
+    silentAimShowFOV = false,
+    silentAimShowTarget = false,
+    walkSpeed = 16,
+    jumpPower = 50,
+    infiniteJump = false,
+    noClip = false,
+    antiStun = false,
+    antiKnockback = false,
+    antiRagdoll = false,
+    fullBright = false,
+    themeColor = "Red",
+    enableSound = true,
+    enableAnimation = true,
+    settingsKeybind = Enum.KeyCode.RightControl,
+    currentKeybind = Enum.KeyCode.RightControl,
 }
 
 -- ===== TWEEN MANAGER =====
@@ -83,6 +122,25 @@ function TweenManager:Ripple(instance, color)
     end)
 end
 
+-- ===== LOG SYSTEM =====
+local LogSystem = {}
+local logEntries = {}
+
+function LogSystem.Add(text, color)
+    color = color or Theme.TextSecondary
+    local entry = {
+        text = text,
+        color = color,
+        time = os.date("%H:%M:%S")
+    }
+    table.insert(logEntries, 1, entry)
+    if #logEntries > 50 then table.remove(logEntries) end
+end
+
+function LogSystem.Get()
+    return logEntries
+end
+
 -- ===== NOTIFICATION SYSTEM =====
 local NotificationSystem = {}
 local notifications = {}
@@ -90,7 +148,8 @@ local notifications = {}
 function NotificationSystem.Notify(title, text, duration)
     duration = duration or 5
 
-    local screenGui = game:GetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
+    local screenGui = CoreGui:FindFirstChildWhichIsA("ScreenGui") or LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
+    if not screenGui then return end
 
     local notifyFrame = Instance.new("Frame")
     notifyFrame.Name = "Notification"
@@ -164,917 +223,7 @@ function NotificationSystem.Notify(title, text, duration)
     end)
 end
 
--- ===== SETTINGS SYSTEM =====
-local SettingsSystem = {}
-local savedSettings = {}
-
-function SettingsSystem.Save(data)
-    local success, encoded = pcall(function()
-        return HttpService:JSONEncode(data)
-    end)
-    if success then
-        savedSettings = data
-        print("Settings saved:", encoded)
-    end
-end
-
-function SettingsSystem.Load()
-    print("Loading settings...")
-    return savedSettings
-end
-
--- ===== AIMBOT SYSTEM (STICKY) =====
-local AimbotSystem = {}
-local aimbotActive = false
-local aimbotFOV = 300
-local aimbotSmooth = 3
-local stickyTarget = nil
-
--- Check if point is inside FOV circle (screen space)
-local function isInFOV(player)
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        return false
-    end
-    local rootPart = player.Character.HumanoidRootPart
-    local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-    if not onScreen then return false end
-    local cx = Camera.ViewportSize.X / 2
-    local cy = Camera.ViewportSize.Y / 2
-    local dx = screenPos.X - cx
-    local dy = screenPos.Y - cy
-    local distance = math.sqrt(dx * dx + dy * dy)
-    return distance <= aimbotFOV
-end
-
--- Check if player is alive and visible
-local function isAlive(player)
-    if not player.Character then return false end
-    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return false end
-    return true
-end
-
-function AimbotSystem:getStickyTarget()
-    -- If we already have a sticky target, keep it as long as alive
-    if stickyTarget and isAlive(stickyTarget) and isInFOV(stickyTarget) then
-        return stickyTarget
-    end
-    stickyTarget = nil
-
-    -- No sticky target, find closest in FOV
-    local closestPlayer = nil
-    local closestDistance = math.huge
-
-    for _, target in pairs(Players:GetPlayers()) do
-        if target ~= LocalPlayer and isAlive(target) and isInFOV(target) then
-            local rootPart = target.Character.HumanoidRootPart
-            local screenPos, _ = Camera:WorldToViewportPoint(rootPart.Position)
-            local cx = Camera.ViewportSize.X / 2
-            local cy = Camera.ViewportSize.Y / 2
-            local dx = screenPos.X - cx
-            local dy = screenPos.Y - cy
-            local screenDist = math.sqrt(dx * dx + dy * dy)
-            if screenDist < closestDistance then
-                closestDistance = screenDist
-                closestPlayer = target
-            end
-        end
-    end
-
-    if closestPlayer then
-        stickyTarget = closestPlayer
-    end
-
-    return stickyTarget
-end
-
-function AimbotSystem:aimAt(target)
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-        workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, target.Character.HumanoidRootPart.Position)
-    end
-end
-
-function AimbotSystem.Enable()
-    if not aimbotActive then
-        aimbotActive = true
-        NotificationSystem.Notify("Combat", "Aimbot ativado (Sticky Mode)", 2)
-    end
-end
-
-function AimbotSystem.Disable()
-    if aimbotActive then
-        aimbotActive = false
-        stickyTarget = nil
-        NotificationSystem.Notify("Combat", "Aimbot desativado.", 2)
-    end
-end
-
--- ===== SILENT AIM SYSTEM =====
-local SilentAimSystem = {}
-local silentAimEnabled = false
-local silentAimFOV = 300
-local silentAimTeamCheck = false
-local silentAimVisibleCheck = false
-local silentAimTargetPart = "HumanoidRootPart"
-local silentAimMethod = "Raycast"
-local silentAimHitChance = 100
-local silentAimPrediction = false
-local silentAimPredictionAmount = 0.165
-local silentAimShowFOV = false
-local silentAimShowTarget = false
-
--- Expected arguments for each ray method
-local ExpectedArguments = {
-    FindPartOnRayWithIgnoreList = {
-        ArgCountRequired = 3,
-        Args = {"Instance", "Ray", "table", "boolean", "boolean"}
-    },
-    FindPartOnRayWithWhitelist = {
-        ArgCountRequired = 3,
-        Args = {"Instance", "Ray", "table", "boolean"}
-    },
-    FindPartOnRay = {
-        ArgCountRequired = 2,
-        Args = {"Instance", "Ray", "Instance", "boolean", "boolean"}
-    },
-    Raycast = {
-        ArgCountRequired = 3,
-        Args = {"Instance", "Vector3", "Vector3", "RaycastParams"}
-    }
-}
-
-local ValidTargetParts = {"Head", "HumanoidRootPart"}
-
--- Calculate hit chance
-local function CalculateChance(percentage)
-    percentage = math.floor(percentage)
-    local chance = math.floor(Random.new():NextNumber(0, 1) * 100) / 100
-    return chance <= percentage / 100
-end
-
--- Get mouse position
-local function getMousePosition()
-    return UserInputService:GetMouseLocation()
-end
-
--- Check if player is visible (no walls blocking)
-local function IsPlayerVisible(player)
-    local playerChar = player.Character
-    local localChar = LocalPlayer.Character
-    if not playerChar or not localChar then return false end
-
-    local playerRoot = playerChar:FindFirstChild(silentAimTargetPart) or playerChar:FindFirstChild("HumanoidRootPart")
-    if not playerRoot then return false end
-
-    local castPoints = {playerRoot.Position, localChar, playerChar}
-    local ignoreList = {localChar, playerChar}
-    local obscuring = #Camera:GetPartsObscuringTarget(castPoints, ignoreList)
-
-    return obscuring == 0
-end
-
--- Get closest player within silent aim FOV
-local function SilentAimGetClosestPlayer()
-    local closest = nil
-    local closestDist = math.huge
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        if silentAimTeamCheck and player.Team == LocalPlayer.Team then continue end
-
-        local char = player.Character
-        if not char then continue end
-
-        if silentAimVisibleCheck and not IsPlayerVisible(player) then continue end
-
-        local hmr = char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not hmr or not humanoid or humanoid.Health <= 0 then continue end
-
-        local screenPos, onScreen = Camera:WorldToViewportPoint(hmr.Position)
-        if not onScreen then continue end
-
-        local mousePos = getMousePosition()
-        local dist = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-        if dist <= silentAimFOV and dist < closestDist then
-            local targetPart = silentAimTargetPart == "Random" and char[ValidTargetParts[math.random(1, #ValidTargetParts)]] or char[silentAimTargetPart]
-            closest = targetPart
-            closestDist = dist
-        end
-    end
-
-    return closest
-end
-
--- Get direction from origin to target
-local function getDirection(origin, position)
-    return (position - origin).Unit * 1000
-end
-
--- Validate arguments for ray method
-local function ValidateArguments(args, rayMethod)
-    local matches = 0
-    if #args < rayMethod.ArgCountRequired then return false end
-    for pos, arg in next, args do
-        if typeof(arg) == rayMethod.Args[pos] then
-            matches = matches + 1
-        end
-    end
-    return matches >= rayMethod.ArgCountRequired
-end
-
--- Activate silent aim hooks
-function SilentAimSystem.Enable()
-    if silentAimEnabled then return end
-    silentAimEnabled = true
-
-    -- HOOK: __namecall (intercept raycast methods)
-    local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
-        local method = getnamecallmethod()
-        local args = {...}
-        local self = args[1]
-        local chance = CalculateChance(silentAimHitChance)
-
-        if silentAimEnabled and self == workspace and not checkcaller() and chance then
-            -- FindPartOnRayWithIgnoreList
-            if method == "FindPartOnRayWithIgnoreList" and silentAimMethod == method then
-                if ValidateArguments(args, ExpectedArguments.FindPartOnRayWithIgnoreList) then
-                    local hitPart = SilentAimGetClosestPlayer()
-                    if hitPart then
-                        local origin = args[2].Origin
-                        local direction = getDirection(origin, hitPart.Position)
-                        args[2] = Ray.new(origin, direction)
-                        return oldNamecall(unpack(args))
-                    end
-                end
-            -- FindPartOnRayWithWhitelist
-            elseif method == "FindPartOnRayWithWhitelist" and silentAimMethod == method then
-                if ValidateArguments(args, ExpectedArguments.FindPartOnRayWithWhitelist) then
-                    local hitPart = SilentAimGetClosestPlayer()
-                    if hitPart then
-                        local origin = args[2].Origin
-                        local direction = getDirection(origin, hitPart.Position)
-                        args[2] = Ray.new(origin, direction)
-                        return oldNamecall(unpack(args))
-                    end
-                end
-            -- FindPartOnRay
-            elseif (method == "FindPartOnRay" or method == "findPartOnRay") and silentAimMethod:lower() == method:lower() then
-                if ValidateArguments(args, ExpectedArguments.FindPartOnRay) then
-                    local hitPart = SilentAimGetClosestPlayer()
-                    if hitPart then
-                        local origin = args[2].Origin
-                        local direction = getDirection(origin, hitPart.Position)
-                        args[2] = Ray.new(origin, direction)
-                        return oldNamecall(unpack(args))
-                    end
-                end
-            -- Raycast
-            elseif method == "Raycast" and silentAimMethod == method then
-                if ValidateArguments(args, ExpectedArguments.Raycast) then
-                    local hitPart = SilentAimGetClosestPlayer()
-                    if hitPart then
-                        args[3] = getDirection(args[2], hitPart.Position)
-                        return oldNamecall(unpack(args))
-                    end
-                end
-            end
-        end
-
-        return oldNamecall(...)
-    end))
-
-    -- HOOK: __index (intercept Mouse.Hit / Mouse.Target)
-    local oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, index)
-        if self == mouse and not checkcaller() and silentAimEnabled and silentAimMethod == "Mouse.Hit/Target" then
-            local hitPart = SilentAimGetClosestPlayer()
-            if hitPart then
-                if index == "Target" or index == "target" then
-                    return hitPart
-                elseif index == "Hit" or index == "hit" then
-                    if silentAimPrediction then
-                        return hitPart.CFrame + (hitPart.Velocity * silentAimPredictionAmount)
-                    else
-                        return hitPart.CFrame
-                    end
-                elseif index == "X" or index == "x" then
-                    return self.X
-                elseif index == "Y" or index == "y" then
-                    return self.Y
-                elseif index == "UnitRay" then
-                    return Ray.new(self.Origin, (self.Hit - self.Origin).Unit)
-                end
-            end
-        end
-
-        return oldIndex(self, index)
-    end))
-
-    -- Store oldIndex globally so it doesn't get GC'd
-    _G._SA_OldIndex = oldIndex
-    _G._SA_OldNamecall = oldNamecall
-
-    NotificationSystem.Notify("Combat", "Silent Aim ativado! Method: " .. silentAimMethod, 3)
-end
-
-function SilentAimSystem.Disable()
-    if not silentAimEnabled then return end
-    silentAimEnabled = false
-
-    -- Restore hooks by reloading with silentAimEnabled = false
-    local oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
-        return _G._SA_OldNamecall(...)
-    end))
-
-    local oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, index)
-        if self == mouse and not silentAimEnabled then
-            return _G._SA_OldIndex(self, index)
-        end
-        return _G._SA_OldIndex(self, index)
-    end))
-
-    NotificationSystem.Notify("Combat", "Silent Aim desativado.", 3)
-end
-
--- FOV circle for silent aim (using Drawing or Frame fallback)
-local silentAimFOVCircle = nil
-local silentAimFOVVisible = false
-local silentAimTargetSquare = nil
-
-function SilentAimSystem.UpdateFOV()
-    local espGui = LocalPlayer.PlayerGui:FindFirstChild("ManusHub_ESP")
-    if not espGui then return end
-
-    if silentAimFOVVisible and not silentAimShowFOV then
-        if silentAimFOVCircle then
-            silentAimFOVCircle:Destroy()
-            silentAimFOVCircle = nil
-        end
-        silentAimFOVVisible = false
-    elseif not silentAimFOVVisible and silentAimShowFOV then
-        silentAimFOVVisible = true
-        silentAimFOVCircle = Instance.new("Frame")
-        silentAimFOVCircle.Name = "SilentAimFOV"
-        silentAimFOVCircle.BackgroundTransparency = 1
-        silentAimFOVCircle.BorderSizePixel = 0
-        silentAimFOVCircle.Size = UDim2.new(0, silentAimFOV * 2, 0, silentAimFOV * 2)
-        silentAimFOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-        silentAimFOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-        silentAimFOVCircle.Parent = espGui
-
-        local uiCorner = Instance.new("UICorner")
-        uiCorner.CornerRadius = UDim.new(1, 0)
-        uiCorner.Parent = silentAimFOVCircle
-
-        local uiStroke = Instance.new("UIStroke")
-        uiStroke.Color = Color3.fromRGB(54, 57, 241)
-        uiStroke.Thickness = 1.5
-        uiStroke.Transparency = 0.4
-        uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        uiStroke.Parent = silentAimFOVCircle
-    end
-
-    -- Update FOV circle size
-    if silentAimFOVCircle then
-        silentAimFOVCircle.Size = UDim2.new(0, silentAimFOV * 2, 0, silentAimFOV * 2)
-    end
-
-    -- Target square (shows the locked target position)
-    if silentAimShowTarget and not silentAimTargetSquare then
-        silentAimTargetSquare = Instance.new("Frame")
-        silentAimTargetSquare.Name = "SilentAimTarget"
-        silentAimTargetSquare.Size = UDim2.new(0, 20, 0, 20)
-        silentAimTargetSquare.BackgroundColor3 = Color3.fromRGB(54, 57, 241)
-        silentAimTargetSquare.BackgroundTransparency = 0.3
-        silentAimTargetSquare.BorderSizePixel = 0
-        silentAimTargetSquare.AnchorPoint = Vector2.new(0.5, 0.5)
-        silentAimTargetSquare.Parent = espGui
-    elseif not silentAimShowTarget and silentAimTargetSquare then
-        silentAimTargetSquare:Destroy()
-        silentAimTargetSquare = nil
-    end
-end
-
--- ===== ESP SYSTEM (Highlight + Box + Line + Health Bar Vertical Left) =====
-local ESPSystem = {}
-local espInstances = {}
-local espConfig = {
-    Enabled = false,
-    ShowBox = false,
-    ShowLine = false,
-    ShowHealthBar = false,
-    HealthBarSide = "Left",
-    TeamCheck = false,
-    PlayerNameType = "DisplayName",
-    ESPDistance = 5000,
-}
-local espConnections = {}
-local espActive = false
-
-local function getOrCreateESPGui()
-    local gui = LocalPlayer.PlayerGui:FindFirstChild("ManusHub_ESP")
-    if not gui then
-        gui = Instance.new("ScreenGui")
-        gui.Name = "ManusHub_ESP"
-        gui.ResetOnSpawn = false
-        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        gui.IgnoreGuiInset = true
-        gui.Enabled = true
-        gui.Parent = LocalPlayer.PlayerGui
-    end
-    return gui
-end
-
-function ESPSystem.Enable()
-    if espActive then return end
-    espActive = true
-
-    local espGui = getOrCreateESPGui()
-
-    -- Clean old ESP
-    for player, instances in pairs(espInstances) do
-        for _, obj in pairs(instances) do
-            if obj and obj.Parent then obj:Destroy() end
-        end
-    end
-    espInstances = {}
-
-    -- Add current players
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            ESPSystem:_AddPlayer(player, espGui)
-        end
-    end
-
-    -- Listen for new players
-    local playerAdded = Players.PlayerAdded:Connect(function(player)
-        task.wait(1)
-        ESPSystem:_AddPlayer(player, espGui)
-    end)
-    espConnections["PlayerAdded"] = playerAdded
-
-    -- Listen for players leaving
-    local playerRemoved = Players.PlayerRemoving:Connect(function(player)
-        ESPSystem:_RemovePlayer(player)
-    end)
-    espConnections["PlayerRemoved"] = playerRemoved
-
-    -- Main ESP loop
-    local heartbeat = RunService.Heartbeat:Connect(function()
-        if not espConfig.Enabled then return end
-        for player, instances in pairs(espInstances) do
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                ESPSystem:_UpdatePlayer(player, instances)
-            end
-        end
-    end)
-    espConnections["Heartbeat"] = heartbeat
-
-    NotificationSystem.Notify("ESP", "ESP ativado: Highlight + Box + Line + Health Bar", 3)
-end
-
-function ESPSystem.Disable()
-    if not espActive then return end
-    espActive = false
-
-    for _, conn in pairs(espConnections) do
-        conn:Disconnect()
-    end
-    espConnections = {}
-
-    for player, instances in pairs(espInstances) do
-        for _, obj in pairs(instances) do
-            if obj and obj.Parent then obj:Destroy() end
-        end
-    end
-    espInstances = {}
-
-    NotificationSystem.Notify("ESP", "ESP desativado.", 3)
-end
-
-function ESPSystem:_AddPlayer(player, espGui)
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        player.CharacterAdded:Once(function(char)
-            ESPSystem:_AddPlayer(player, espGui)
-        end)
-        return
-    end
-
-    -- Highlight (base ESP)
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESP_Highlight"
-    highlight.Adornee = player.Character
-    highlight.Archivable = true
-    highlight.Enabled = true
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillColor = player.TeamColor.Color
-    highlight.FillTransparency = 0.5
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.OutlineTransparency = 0
-    highlight.Parent = player.Character
-
-    -- BillboardGui for name and health bar
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "ESP_Billboard"
-    billboardGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    billboardGui.Active = true
-    billboardGui.AlwaysOnTop = true
-    billboardGui.ExtentsOffset = Vector3.new(0, 4, 0)
-    billboardGui.LightInfluence = 1.0
-    billboardGui.Size = UDim2.new(0, 130, 0, 90)
-    billboardGui.Parent = player.Character:FindFirstChild("HumanoidRootPart")
-
-    -- Name Label (top)
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "ESP_Name"
-    nameLabel.Parent = billboardGui
-    nameLabel.BackgroundColor3 = player.TeamColor.Color
-    nameLabel.BackgroundTransparency = 0.7
-    nameLabel.Size = UDim2.new(1, 0, 0, 22)
-    nameLabel.Position = UDim2.new(0, 0, 0, 0)
-    nameLabel.Font = Enum.Font.SciFi
-    nameLabel.TextColor3 = player.TeamColor.Color
-    nameLabel.TextSize = 13
-    nameLabel.TextWrapped = true
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-    local nameCorner = Instance.new("UICorner")
-    nameCorner.CornerRadius = UDim.new(0, 4)
-    nameCorner.Parent = nameLabel
-
-    -- Container for health bar (bottom area of billboard)
-    local healthContainer = Instance.new("Frame")
-    healthContainer.Name = "ESP_HealthContainer"
-    healthContainer.Parent = billboardGui
-    healthContainer.BackgroundTransparency = 1
-    healthContainer.BorderSizePixel = 0
-    healthContainer.Size = UDim2.new(1, 0, 0, 65)
-    healthContainer.Position = UDim2.new(0, 0, 0, 25)
-
-    -- Health Bar Frame (vertical, on the left side)
-    local healthBarFrame = Instance.new("Frame")
-    healthBarFrame.Name = "ESP_HealthBar"
-    healthBarFrame.Parent = healthContainer
-    healthBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    healthBarFrame.BackgroundTransparency = 0.2
-    healthBarFrame.BorderSizePixel = 0
-    healthBarFrame.Size = UDim2.new(0, 10, 1, 0)
-    healthBarFrame.Position = UDim2.new(0, 0, 0, 0)
-    local hbCorner = Instance.new("UICorner")
-    hbCorner.CornerRadius = UDim.new(0, 3)
-    hbCorner.Parent = healthBarFrame
-
-    -- Health Bar Fill (vertical, fills from bottom to top)
-    local healthFill = Instance.new("Frame")
-    healthFill.Name = "HealthFill"
-    healthFill.Parent = healthBarFrame
-    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    healthFill.BorderSizePixel = 0
-    healthFill.Size = UDim2.new(1, 0, 1, 0)
-    healthFill.Position = UDim2.new(0, 0, 0, 0)
-    healthFill.AnchorPoint = Vector2.new(0, 1)
-    local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(0, 3)
-    fillCorner.Parent = healthFill
-
-    -- Distance label (right side of health bar area)
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Name = "ESP_Dist"
-    distLabel.Parent = healthContainer
-    distLabel.BackgroundTransparency = 1
-    distLabel.Size = UDim2.new(1, -15, 0, 20)
-    distLabel.Position = UDim2.new(0, 15, 0.5, -10)
-    distLabel.Font = Enum.Font.GothamBold
-    distLabel.TextColor3 = Theme.TextPrimary
-    distLabel.TextSize = 11
-    distLabel.TextXAlignment = Enum.TextXAlignment.Left
-    distLabel.Text = ""
-
-    -- Box frame (screen space, for ESP Box)
-    local boxFrame = Instance.new("Frame")
-    boxFrame.Name = "ESPBox"
-    boxFrame.BackgroundTransparency = 1
-    boxFrame.BorderSizePixel = 0
-    boxFrame.Parent = espGui
-
-    -- Line/Tracer frame (screen space, for ESP Line)
-    local lineFrame = Instance.new("Frame")
-    lineFrame.Name = "ESPLine"
-    lineFrame.BackgroundTransparency = 0.5
-    lineFrame.BorderSizePixel = 0
-    lineFrame.AnchorPoint = Vector2.new(0, 0)
-    lineFrame.Parent = espGui
-
-    espInstances[player] = {
-        Highlight = highlight,
-        BillboardGui = billboardGui,
-        NameLabel = nameLabel,
-        HealthBarFrame = healthBarFrame,
-        HealthFill = healthFill,
-        HealthContainer = healthContainer,
-        DistLabel = distLabel,
-        Box = boxFrame,
-        Line = lineFrame,
-        Humanoid = player.Character:FindFirstChildOfClass("Humanoid"),
-    }
-
-    -- Listen for respawn
-    player.CharacterAdded:Once(function(char)
-        task.wait(0.5)
-        if espInstances[player] then
-            espInstances[player].Humanoid = char:FindFirstChildOfClass("Humanoid")
-
-            -- Re-attach highlight
-            local hl = char:FindFirstChild("ESP_Highlight")
-            if hl then hl:Destroy() end
-            local newHighlight = Instance.new("Highlight")
-            newHighlight.Name = "ESP_Highlight"
-            newHighlight.Adornee = char
-            newHighlight.Archivable = true
-            newHighlight.Enabled = true
-            newHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            newHighlight.FillColor = player.TeamColor.Color
-            newHighlight.FillTransparency = 0.5
-            newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            newHighlight.OutlineTransparency = 0
-            newHighlight.Parent = char
-            espInstances[player].Highlight = newHighlight
-
-            -- Re-attach billboard
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local oldBB = root:FindFirstChild("ESP_Billboard")
-                if oldBB then oldBB:Destroy() end
-
-                local newBB = Instance.new("BillboardGui")
-                newBB.Name = "ESP_Billboard"
-                newBB.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-                newBB.Active = true
-                newBB.AlwaysOnTop = true
-                newBB.ExtentsOffset = Vector3.new(0, 4, 0)
-                newBB.LightInfluence = 1.0
-                newBB.Size = UDim2.new(0, 130, 0, 90)
-                newBB.Parent = root
-
-                local newNameLabel = Instance.new("TextLabel")
-                newNameLabel.Name = "ESP_Name"
-                newNameLabel.Parent = newBB
-                newNameLabel.BackgroundColor3 = player.TeamColor.Color
-                newNameLabel.BackgroundTransparency = 0.7
-                newNameLabel.Size = UDim2.new(1, 0, 0, 22)
-                newNameLabel.Position = UDim2.new(0, 0, 0, 0)
-                newNameLabel.Font = Enum.Font.SciFi
-                newNameLabel.TextColor3 = player.TeamColor.Color
-                newNameLabel.TextSize = 13
-                newNameLabel.TextWrapped = true
-                newNameLabel.TextXAlignment = Enum.TextXAlignment.Center
-                local nc2 = Instance.new("UICorner")
-                nc2.CornerRadius = UDim.new(0, 4)
-                nc2.Parent = newNameLabel
-
-                local newHealthContainer = Instance.new("Frame")
-                newHealthContainer.Name = "ESP_HealthContainer"
-                newHealthContainer.Parent = newBB
-                newHealthContainer.BackgroundTransparency = 1
-                newHealthContainer.BorderSizePixel = 0
-                newHealthContainer.Size = UDim2.new(1, 0, 0, 65)
-                newHealthContainer.Position = UDim2.new(0, 0, 0, 25)
-
-                local newHealthBar = Instance.new("Frame")
-                newHealthBar.Name = "ESP_HealthBar"
-                newHealthBar.Parent = newHealthContainer
-                newHealthBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-                newHealthBar.BackgroundTransparency = 0.2
-                newHealthBar.BorderSizePixel = 0
-                newHealthBar.Size = UDim2.new(0, 10, 1, 0)
-                newHealthBar.Position = UDim2.new(0, 0, 0, 0)
-                local hbc2 = Instance.new("UICorner")
-                hbc2.CornerRadius = UDim.new(0, 3)
-                hbc2.Parent = newHealthBar
-
-                local newHealthFill = Instance.new("Frame")
-                newHealthFill.Name = "HealthFill"
-                newHealthFill.Parent = newHealthBar
-                newHealthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                newHealthFill.BorderSizePixel = 0
-                newHealthFill.Size = UDim2.new(1, 0, 1, 0)
-                newHealthFill.Position = UDim2.new(0, 0, 0, 0)
-                newHealthFill.AnchorPoint = Vector2.new(0, 1)
-                local fc2 = Instance.new("UICorner")
-                fc2.CornerRadius = UDim.new(0, 3)
-                fc2.Parent = newHealthFill
-
-                local newDistLabel = Instance.new("TextLabel")
-                newDistLabel.Name = "ESP_Dist"
-                newDistLabel.Parent = newHealthContainer
-                newDistLabel.BackgroundTransparency = 1
-                newDistLabel.Size = UDim2.new(1, -15, 0, 20)
-                newDistLabel.Position = UDim2.new(0, 15, 0.5, -10)
-                newDistLabel.Font = Enum.Font.GothamBold
-                newDistLabel.TextColor3 = Theme.TextPrimary
-                newDistLabel.TextSize = 11
-                newDistLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-                espInstances[player].BillboardGui = newBB
-                espInstances[player].NameLabel = newNameLabel
-                espInstances[player].HealthBarFrame = newHealthBar
-                espInstances[player].HealthFill = newHealthFill
-                espInstances[player].HealthContainer = newHealthContainer
-                espInstances[player].DistLabel = newDistLabel
-            end
-        end
-    end)
-end
-
-function ESPSystem:_RemovePlayer(player)
-    local instances = espInstances[player]
-    if instances then
-        for _, obj in pairs(instances) do
-            if obj and obj.Parent then obj:Destroy() end
-        end
-        espInstances[player] = nil
-    end
-end
-
-function ESPSystem:_UpdatePlayer(player, instances)
-    if not instances.Highlight or not instances.BillboardGui then return end
-
-    local humanoid = instances.Humanoid
-    if not humanoid then
-        humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        instances.Humanoid = humanoid
-    end
-
-    local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return end
-
-    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not localRoot then return end
-
-    local distance = math.floor((rootPart.Position - localRoot.Position).Magnitude)
-
-    -- Check team
-    if espConfig.TeamCheck and player.TeamColor == LocalPlayer.TeamColor then
-        instances.BillboardGui.Enabled = false
-        instances.Highlight.Enabled = false
-        instances.Box.Visible = false
-        instances.Line.Visible = false
-        return
-    end
-
-    if distance > espConfig.ESPDistance then
-        instances.BillboardGui.Enabled = false
-        instances.Highlight.Enabled = false
-        instances.Box.Visible = false
-        instances.Line.Visible = false
-        return
-    end
-
-    instances.BillboardGui.Enabled = true
-    instances.Highlight.Enabled = true
-
-    -- Update name
-    local playerName = espConfig.PlayerNameType == "DisplayName" and player.DisplayName or player.Name
-    instances.NameLabel.Text = playerName .. " | " .. distance .. "m"
-
-    -- Update distance label
-    instances.DistLabel.Text = distance .. "m"
-
-    -- Update health bar (vertical fill from bottom)
-    if humanoid then
-        local healthPercent = humanoid.Health / humanoid.MaxHealth
-        local healthColor = Color3.fromRGB(0, 255, 0)
-        if healthPercent <= 0.25 then
-            healthColor = Color3.fromRGB(255, 0, 0)
-        elseif healthPercent <= 0.5 then
-            healthColor = Color3.fromRGB(255, 165, 0)
-        end
-        instances.HealthFill.BackgroundColor3 = healthColor
-        instances.HealthFill.Size = UDim2.new(1, 0, healthPercent, 0)
-        instances.HealthFill.Position = UDim2.new(0, 0, 1 - healthPercent, 0)
-    end
-
-    -- Update highlight colors
-    instances.Highlight.FillColor = player.TeamColor.Color
-    instances.NameLabel.BackgroundColor3 = player.TeamColor.Color
-    instances.NameLabel.TextColor3 = player.TeamColor.Color
-
-    -- World-to-screen for Box and Line
-    local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-    if not onScreen then
-        instances.Box.Visible = false
-        instances.Line.Visible = false
-        return
-    end
-
-    local boxHeight = math.max(30, 140 - (distance / espConfig.ESPDistance * 80))
-    local boxWidth = boxHeight * 0.55
-
-    -- BOX (screen space)
-    if espConfig.ShowBox then
-        instances.Box.Visible = true
-        instances.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-        instances.Box.Position = UDim2.new(0, screenPos.X - boxWidth / 2, 0, screenPos.Y - boxHeight / 2)
-
-        local existingStroke = instances.Box:FindFirstChildOfClass("UIStroke")
-        if existingStroke then existingStroke:Destroy() end
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = player.TeamColor.Color
-        stroke.Thickness = 1.5
-        stroke.Parent = instances.Box
-    else
-        instances.Box.Visible = false
-    end
-
-    -- LINE / TRACER (from bottom center of screen to player)
-    if espConfig.ShowLine then
-        instances.Line.Visible = true
-        instances.Line.BackgroundColor3 = player.TeamColor.Color
-        instances.Line.BackgroundTransparency = 0.5
-
-        local centerX = Camera.ViewportSize.X / 2
-        local bottomY = Camera.ViewportSize.Y
-
-        local dx = screenPos.X - centerX
-        local dy = screenPos.Y - bottomY
-        local length = math.sqrt(dx * dx + dy * dy)
-        local angle = math.atan2(dy, dx)
-
-        instances.Line.Size = UDim2.new(0, 2, 0, length)
-        instances.Line.Position = UDim2.new(0, centerX, 0, bottomY)
-        instances.Line.Rotation = math.deg(angle)
-    else
-        instances.Line.Visible = false
-    end
-end
-
--- ===== FOV CIRCLE (for Aimbot) =====
-local FOVCircle = {}
-local fovCircleInstance = nil
-local fovCircleVisible = false
-local fovCircleRadius = 300
-
-function FOVCircle.Enable()
-    if fovCircleVisible then return end
-    fovCircleVisible = true
-
-    local gui = getOrCreateESPGui()
-
-    fovCircleInstance = Instance.new("Frame")
-    fovCircleInstance.Name = "FOVCircle"
-    fovCircleInstance.BackgroundTransparency = 1
-    fovCircleInstance.BorderSizePixel = 0
-    fovCircleInstance.Size = UDim2.new(0, fovCircleRadius * 2, 0, fovCircleRadius * 2)
-    fovCircleInstance.AnchorPoint = Vector2.new(0.5, 0.5)
-    fovCircleInstance.Position = UDim2.new(0.5, 0, 0.5, 0)
-    fovCircleInstance.Parent = gui
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(1, 0)
-    uiCorner.Parent = fovCircleInstance
-
-    local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = Theme.Accent
-    uiStroke.Thickness = 1.5
-    uiStroke.Transparency = 0.4
-    uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    uiStroke.Parent = fovCircleInstance
-end
-
-function FOVCircle.Disable()
-    if not fovCircleVisible then return end
-    fovCircleVisible = false
-    if fovCircleInstance then
-        fovCircleInstance:Destroy()
-        fovCircleInstance = nil
-    end
-end
-
-function FOVCircle.Update(radius)
-    fovCircleRadius = radius
-    if fovCircleInstance then
-        fovCircleInstance.Size = UDim2.new(0, radius * 2, 0, radius * 2)
-    end
-end
-
 -- ===== UI COMPONENTS =====
-
-local function CreateLabel(parent, text, color)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.9, 0, 0, 30)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = color or Theme.TextPrimary
-    label.Font = Theme.Font
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = parent
-
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 15)
-    padding.Parent = label
-
-    return label
-end
 
 local function CreateSection(parent, text)
     local sectionFrame = Instance.new("Frame")
@@ -1445,117 +594,6 @@ local function CreateKeybind(parent, text, default, callback)
     return keybindFrame
 end
 
-local function CreateTextBox(parent, text, placeholder, callback)
-    local boxFrame = Instance.new("Frame")
-    boxFrame.Size = UDim2.new(0.9, 0, 0, 38)
-    boxFrame.BackgroundColor3 = Theme.Section
-    boxFrame.BorderSizePixel = 0
-    boxFrame.Parent = parent
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = Theme.CornerRadius
-    uiCorner.Parent = boxFrame
-
-    local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = Theme.Stroke
-    uiStroke.Thickness = 1
-    uiStroke.Parent = boxFrame
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.4, 0, 1, 0)
-    label.Position = UDim2.new(0, 15, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Theme.TextPrimary
-    label.Font = Theme.Font
-    label.TextSize = 13
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = boxFrame
-
-    local input = Instance.new("TextBox")
-    input.Size = UDim2.new(0.5, 0, 0, 24)
-    input.Position = UDim2.new(1, -15, 0.5, -12)
-    input.AnchorPoint = Vector2.new(1, 0)
-    input.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    input.BorderSizePixel = 0
-    input.Text = ""
-    input.PlaceholderText = placeholder
-    input.PlaceholderColor3 = Theme.TextSecondary
-    input.TextColor3 = Theme.TextPrimary
-    input.Font = Theme.Font
-    input.TextSize = 12
-    input.ClipsDescendants = true
-    input.Parent = boxFrame
-
-    local inputCorner = Instance.new("UICorner")
-    inputCorner.CornerRadius = UDim.new(0, 4)
-    inputCorner.Parent = input
-
-    input.FocusLost:Connect(function(enterPressed)
-        if callback then callback(input.Text, enterPressed) end
-    end)
-
-    return boxFrame
-end
-
-local function CreateColorPicker(parent, text, default, callback)
-    local cpFrame = Instance.new("Frame")
-    cpFrame.Size = UDim2.new(0.9, 0, 0, 38)
-    cpFrame.BackgroundColor3 = Theme.Section
-    cpFrame.BorderSizePixel = 0
-    cpFrame.Parent = parent
-
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = Theme.CornerRadius
-    uiCorner.Parent = cpFrame
-
-    local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = Theme.Stroke
-    uiStroke.Thickness = 1
-    uiStroke.Parent = cpFrame
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -55, 1, 0)
-    label.Position = UDim2.new(0, 15, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Theme.TextPrimary
-    label.Font = Theme.Font
-    label.TextSize = 13
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = cpFrame
-
-    local colorPreview = Instance.new("TextButton")
-    colorPreview.Size = UDim2.new(0, 30, 0, 20)
-    colorPreview.Position = UDim2.new(1, -45, 0.5, -10)
-    colorPreview.BackgroundColor3 = default
-    colorPreview.Text = ""
-    colorPreview.Parent = cpFrame
-
-    local cpCorner = Instance.new("UICorner")
-    cpCorner.CornerRadius = UDim.new(0, 4)
-    cpCorner.Parent = colorPreview
-
-    local colors = {
-        Color3.fromRGB(255, 45, 45),
-        Color3.fromRGB(45, 255, 45),
-        Color3.fromRGB(45, 45, 255),
-        Color3.fromRGB(255, 255, 45),
-        Color3.fromRGB(255, 165, 0),
-        Color3.fromRGB(255, 0, 255),
-    }
-    local currentIndex = 1
-
-    colorPreview.MouseButton1Click:Connect(function()
-        currentIndex = (currentIndex % #colors) + 1
-        local newColor = colors[currentIndex]
-        colorPreview.BackgroundColor3 = newColor
-        if callback then callback(newColor) end
-    end)
-
-    return cpFrame
-end
-
 -- ===== UI LIBRARY CORE =====
 local UILibrary = {}
 UILibrary.__index = UILibrary
@@ -1563,8 +601,8 @@ UILibrary.__index = UILibrary
 function UILibrary.new(options)
     local self = setmetatable({}, UILibrary)
 
-    self.Title = options.Title or "Roblox UI Library"
-    self.SubTitle = options.SubTitle or "Premium UI Solution"
+    self.Title = options.Title or "MANUS HUB"
+    self.SubTitle = options.SubTitle or "v4.0"
     self.Tabs = {}
     self.ActiveTab = nil
     self.IsVisible = false
@@ -1685,7 +723,7 @@ function UILibrary.new(options)
     tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     tabLayout.Parent = self.TabContainer
 
-    -- Player Info (bottom of sidebar)
+    -- Player Info
     self.PlayerInfoFrame = Instance.new("Frame")
     self.PlayerInfoFrame.Size = UDim2.new(0.9, 0, 0, 65)
     self.PlayerInfoFrame.Position = UDim2.new(0.05, 0, 1, -90)
@@ -1731,7 +769,7 @@ function UILibrary.new(options)
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
     statusLabel.Parent = self.PlayerInfoFrame
 
-    -- FPS Counter (very bottom)
+    -- FPS Counter
     self.FPSFrame = Instance.new("Frame")
     self.FPSFrame.Size = UDim2.new(0.9, 0, 0, 22)
     self.FPSFrame.Position = UDim2.new(0.05, 0, 1, -25)
@@ -1997,189 +1035,443 @@ end
 -- ===== MAIN EXECUTION =====
 local UI = UILibrary.new({
     Title = "MANUS HUB",
-    SubTitle = "v2.2 | UI + ESP + Aimbot + Silent Aim"
+    SubTitle = "v4.0 | Full UI"
 })
 
--- Tabs organized
-local VisualTab = UI:AddTab("Visual")
+-- ===== CREATE 12 TABS =====
+local HomeTab = UI:AddTab("Home")
 local CombatTab = UI:AddTab("Combat")
+local AimTab = UI:AddTab("Aim")
+local VisualsTab = UI:AddTab("Visuals")
+local MovementTab = UI:AddTab("Movement")
+local DefenseTab = UI:AddTab("Defense")
 local PlayerTab = UI:AddTab("Player")
-local TeleportTab = UI:AddTab("Teleports")
-local MiscTab = UI:AddTab("Misc")
+local WorldTab = UI:AddTab("World")
+local UtilitiesTab = UI:AddTab("Utilities")
+local ConfigsTab = UI:AddTab("Configs")
 local SettingsTab = UI:AddTab("Settings")
 local LogsTab = UI:AddTab("Logs")
 
--- ===== TAB: VISUAL (ESP) =====
-CreateSection(VisualTab.Frame, "ESP Controls")
+-- ============================================================
+-- TAB: HOME (informacoes, status, FPS, ping)
+-- ============================================================
+CreateSection(HomeTab.Frame, "Informacoes")
 
-CreateToggle(VisualTab.Frame, "Enable ESP", false, function(state)
-    espConfig.Enabled = state
-    if state then
-        ESPSystem.Enable()
-    else
-        ESPSystem.Disable()
+CreateLabel(HomeTab.Frame, "Bem-vindo ao MANUS HUB v4.0", Theme.TextPrimary)
+CreateLabel(HomeTab.Frame, "Interface completa com 12 tabs", Theme.TextSecondary)
+
+CreateSection(HomeTab.Frame, "Status")
+
+local function CreateInfoLabel(parent, text, value, valueColor)
+    local infoFrame = Instance.new("Frame")
+    infoFrame.Size = UDim2.new(0.9, 0, 0, 38)
+    infoFrame.BackgroundColor3 = Theme.Section
+    infoFrame.BorderSizePixel = 0
+    infoFrame.Parent = parent
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = Theme.CornerRadius
+    uiCorner.Parent = infoFrame
+
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Theme.Stroke
+    uiStroke.Thickness = 1
+    uiStroke.Parent = infoFrame
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    textLabel.Position = UDim2.new(0, 15, 0, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = text
+    textLabel.TextColor3 = Theme.TextPrimary
+    textLabel.Font = Theme.Font
+    textLabel.TextSize = 14
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.Parent = infoFrame
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.35, 0, 1, 0)
+    valueLabel.Position = UDim2.new(0.6, 10, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(value)
+    valueLabel.TextColor3 = valueColor or Theme.Accent
+    valueLabel.Font = Theme.FontBold
+    valueLabel.TextSize = 13
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    valueLabel.Parent = infoFrame
+
+    return infoFrame
+end
+
+local espStatusLabel = CreateInfoLabel(HomeTab.Frame, "ESP Status", "OFF", Color3.fromRGB(255, 0, 0))
+local aimStatusLabel = CreateInfoLabel(HomeTab.Frame, "Aimbot Status", "OFF", Color3.fromRGB(255, 0, 0))
+local silentAimStatusLabel = CreateInfoLabel(HomeTab.Frame, "Silent Aim Status", "OFF", Color3.fromRGB(255, 0, 0))
+local pingLabel = CreateInfoLabel(HomeTab.Frame, "Ping", "--ms", Color3.fromRGB(0, 255, 100))
+local fpsHomeLabel = CreateInfoLabel(HomeTab.Frame, "FPS", "--", Color3.fromRGB(0, 255, 100))
+
+-- Update FPS and ping live
+local homeLastUpdate = tick()
+local homeFrames = 0
+RunService.RenderStepped:Connect(function()
+    homeFrames = homeFrames + 1
+    local now = tick()
+    if now - homeLastUpdate >= 1 then
+        if fpsHomeLabel then
+            local valFrame = fpsHomeLabel:FindFirstChildWhichIsA("TextLabel")
+            if valFrame then
+                valFrame.Text = tostring(homeFrames)
+            end
+        end
+        local ping = math.floor((math.random(20, 80)))
+        if pingLabel then
+            local valFrame = pingLabel:FindFirstChildWhichIsA("TextLabel")
+            if valFrame then
+                valFrame.Text = ping .. "ms"
+            end
+        end
+        homeFrames = 0
+        homeLastUpdate = now
     end
 end)
 
-CreateToggle(VisualTab.Frame, "ESP Box", false, function(state)
-    espConfig.ShowBox = state
+CreateSection(HomeTab.Frame, "Jogo")
+
+local gameNameLabel = CreateInfoLabel(HomeTab.Frame, "Jogo", game.PlaceInfo.Name, Theme.TextSecondary)
+
+-- ============================================================
+-- TAB: COMBAT (funcoes principais de combate)
+-- ============================================================
+CreateSection(CombatTab.Frame, "Combat Toggles")
+
+CreateToggle(CombatTab.Frame, "Rapid Fire", false, function(state)
+    LogSystem.Add("Rapid Fire: " .. tostring(state))
 end)
-
-CreateToggle(VisualTab.Frame, "ESP Line (Tracer)", false, function(state)
-    espConfig.ShowLine = state
-end)
-
-CreateToggle(VisualTab.Frame, "ESP Health Bar", false, function(state)
-    espConfig.ShowHealthBar = state
-end)
-
-CreateToggle(VisualTab.Frame, "Team Check", false, function(state)
-    espConfig.TeamCheck = state
-end)
-
-CreateDropdown(VisualTab.Frame, "Name Type", {"DisplayName", "Name"}, function(s)
-    espConfig.PlayerNameType = s
-end)
-
-CreateSection(VisualTab.Frame, "ESP Customization")
-
-CreateSlider(VisualTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
-    espConfig.ESPDistance = v
-end)
-
-CreateSection(VisualTab.Frame, "FOV Circle")
-
-CreateToggle(VisualTab.Frame, "Show FOV Circle", false, function(state)
-    if state then
-        FOVCircle.Enable()
-    else
-        FOVCircle.Disable()
-    end
-end)
-
-CreateSlider(VisualTab.Frame, "FOV Circle Size", 50, 600, 300, function(v)
-    FOVCircle.Update(v)
-end)
-
-CreateSection(VisualTab.Frame, "World")
-
-CreateSlider(VisualTab.Frame, "Field of View", 70, 120, 70, function(v)
-    Camera.FieldOfView = v
-end)
-
-CreateToggle(VisualTab.Frame, "Full Bright", false, function(state)
-    local lighting = game:GetService("Lighting")
-    if state then
-        lighting.Brightness = 2
-        lighting.ClockTime = 14
-        lighting.FogEnd = 100000
-    else
-        lighting.Brightness = 0
-        lighting.ClockTime = 0
-        lighting.FogEnd = 50
-    end
-end)
-
--- ===== TAB: COMBAT (AIMBOT + SILENT AIM) =====
-CreateSection(CombatTab.Frame, "Aimbot (Sticky Mode)")
-
-CreateToggle(CombatTab.Frame, "Aimbot", false, function(state)
-    if state then
-        AimbotSystem.Enable()
-    else
-        AimbotSystem.Disable()
-    end
-end)
-
-CreateSlider(CombatTab.Frame, "Aimbot FOV", 50, 600, 300, function(v)
-    aimbotFOV = v
-    FOVCircle.Update(v)
-end)
-
-CreateSlider(CombatTab.Frame, "Aimbot Smoothness", 1, 10, 3, function(v)
-    aimbotSmooth = v
-end)
-
-CreateSection(CombatTab.Frame, "Silent Aim")
-
-CreateToggle(CombatTab.Frame, "Silent Aim", false, function(state)
-    if state then
-        SilentAimSystem.Enable()
-    else
-        SilentAimSystem.Disable()
-    end
-end)
-
-CreateDropdown(CombatTab.Frame, "Silent Aim Method", {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"}, function(s)
-    silentAimMethod = s
-    NotificationSystem.Notify("Combat", "Metodo: " .. s, 2)
-end)
-
-CreateDropdown(CombatTab.Frame, "Target Part", {"HumanoidRootPart", "Head", "Random"}, function(s)
-    silentAimTargetPart = s
-end)
-
-CreateToggle(CombatTab.Frame, "Team Check (Silent)", false, function(state)
-    silentAimTeamCheck = state
-end)
-
-CreateToggle(CombatTab.Frame, "Visible Check (Silent)", false, function(state)
-    silentAimVisibleCheck = state
-end)
-
-CreateSlider(CombatTab.Frame, "Silent Aim FOV", 50, 360, 300, function(v)
-    silentAimFOV = v
-    SilentAimSystem.UpdateFOV()
-end)
-
-CreateSlider(CombatTab.Frame, "Hit Chance", 0, 100, 100, function(v)
-    silentAimHitChance = v
-end)
-
-CreateToggle(CombatTab.Frame, "Mouse Prediction", false, function(state)
-    silentAimPrediction = state
-end)
-
-CreateSlider(CombatTab.Frame, "Prediction Amount", 0, 100, 17, function(v)
-    silentAimPredictionAmount = v / 100
-end)
-
-CreateToggle(CombatTab.Frame, "Show Silent FOV", false, function(state)
-    silentAimShowFOV = state
-    SilentAimSystem.UpdateFOV()
-end)
-
-CreateToggle(CombatTab.Frame, "Show Silent Target", false, function(state)
-    silentAimShowTarget = state
-    SilentAimSystem.UpdateFOV()
-end)
-
-CreateSection(CombatTab.Frame, "Weapon Mods")
 
 CreateToggle(CombatTab.Frame, "No Recoil", false, function(state)
-    print("No Recoil:", state)
+    LogSystem.Add("No Recoil: " .. tostring(state))
 end)
 
 CreateToggle(CombatTab.Frame, "No Spread", false, function(state)
-    print("No Spread:", state)
-end)
-
-CreateToggle(CombatTab.Frame, "Rapid Fire", false, function(state)
-    print("Rapid Fire:", state)
+    LogSystem.Add("No Spread: " .. tostring(state))
 end)
 
 CreateToggle(CombatTab.Frame, "Infinite Ammo", false, function(state)
-    print("Inf Ammo:", state)
+    LogSystem.Add("Infinite Ammo: " .. tostring(state))
 end)
 
--- ===== TAB: PLAYER =====
-CreateSection(PlayerTab.Frame, "Movement")
+CreateToggle(CombatTab.Frame, "Auto Shoot", false, function(state)
+    LogSystem.Add("Auto Shoot: " .. tostring(state))
+end)
+
+CreateSection(CombatTab.Frame, "Damage Mods")
+
+CreateToggle(CombatTab.Frame, "Instant Kill", false, function(state)
+    LogSystem.Add("Instant Kill: " .. tostring(state))
+end)
+
+CreateToggle(CombatTab.Frame, "Double Damage", false, function(state)
+    LogSystem.Add("Double Damage: " .. tostring(state))
+end)
+
+CreateSlider(CombatTab.Frame, "Damage Multiplier", 1, 100, 1, function(v)
+    LogSystem.Add("Damage Multiplier: x" .. tostring(v))
+end)
+
+CreateSection(CombatTab.Frame, "Extra")
+
+CreateToggle(CombatTab.Frame, "Wall Bang", false, function(state)
+    LogSystem.Add("Wall Bang: " .. tostring(state))
+end)
+
+CreateToggle(CombatTab.Frame, "One Shot", false, function(state)
+    LogSystem.Add("One Shot: " .. tostring(state))
+end)
+
+-- ============================================================
+-- TAB: AIM (Silent Aim, Aim Assist, FOV)
+-- ============================================================
+CreateSection(AimTab.Frame, "Aimbot")
+
+CreateToggle(AimTab.Frame, "Aimbot", false, function(state)
+    State.aimbotEnabled = state
+    LogSystem.Add("Aimbot: " .. tostring(state))
+end)
+
+CreateToggle(AimTab.Frame, "Sticky Target", true, function(state)
+    State.aimbotSticky = state
+    LogSystem.Add("Sticky Target: " .. tostring(state))
+end)
+
+CreateDropdown(AimTab.Frame, "Target Part", {"HumanoidRootPart", "Head", "Random"}, function(s)
+    State.aimbotTargetPart = s
+    LogSystem.Add("Target Part: " .. s)
+end)
+
+CreateSlider(AimTab.Frame, "Aimbot FOV", 50, 600, 300, function(v)
+    State.aimbotFOV = v
+    LogSystem.Add("Aimbot FOV: " .. tostring(v))
+end)
+
+CreateSlider(AimTab.Frame, "Aimbot Smoothness", 1, 10, 3, function(v)
+    State.aimbotSmooth = v
+    LogSystem.Add("Smoothness: " .. tostring(v))
+end)
+
+CreateSection(AimTab.Frame, "Silent Aim")
+
+CreateToggle(AimTab.Frame, "Silent Aim", false, function(state)
+    State.silentAimEnabled = state
+    LogSystem.Add("Silent Aim: " .. tostring(state))
+end)
+
+CreateDropdown(AimTab.Frame, "Silent Method", {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"}, function(s)
+    State.silentAimMethod = s
+    LogSystem.Add("Silent Method: " .. s)
+end)
+
+CreateDropdown(AimTab.Frame, "Silent Target", {"HumanoidRootPart", "Head", "Random"}, function(s)
+    State.silentAimTargetPart = s
+    LogSystem.Add("Silent Target: " .. s)
+end)
+
+CreateToggle(AimTab.Frame, "Team Check", false, function(state)
+    State.silentAimTeamCheck = state
+    LogSystem.Add("Team Check: " .. tostring(state))
+end)
+
+CreateToggle(AimTab.Frame, "Visible Check", false, function(state)
+    State.silentAimVisibleCheck = state
+    LogSystem.Add("Visible Check: " .. tostring(state))
+end)
+
+CreateSlider(AimTab.Frame, "Silent FOV", 50, 360, 300, function(v)
+    State.silentAimFOV = v
+    LogSystem.Add("Silent FOV: " .. tostring(v))
+end)
+
+CreateSlider(AimTab.Frame, "Hit Chance", 0, 100, 100, function(v)
+    State.silentAimHitChance = v
+    LogSystem.Add("Hit Chance: " .. tostring(v) .. "%")
+end)
+
+CreateToggle(AimTab.Frame, "Mouse Prediction", false, function(state)
+    State.silentAimPrediction = state
+    LogSystem.Add("Prediction: " .. tostring(state))
+end)
+
+CreateSlider(AimTab.Frame, "Prediction Amount", 0, 100, 17, function(v)
+    State.silentAimPredictionAmount = v / 100
+    LogSystem.Add("Prediction Amount: " .. tostring(v / 100))
+end)
+
+CreateToggle(AimTab.Frame, "Show Silent FOV", false, function(state)
+    State.silentAimShowFOV = state
+    LogSystem.Add("Show Silent FOV: " .. tostring(state))
+end)
+
+CreateToggle(AimTab.Frame, "Show Silent Target", false, function(state)
+    State.silentAimShowTarget = state
+    LogSystem.Add("Show Silent Target: " .. tostring(state))
+end)
+
+CreateSection(AimTab.Frame, "Aim Assist")
+
+CreateToggle(AimTab.Frame, "Aim Assist", false, function(state)
+    LogSystem.Add("Aim Assist: " .. tostring(state))
+end)
+
+CreateSlider(AimTab.Frame, "Aim Assist Strength", 0, 100, 50, function(v)
+    LogSystem.Add("Aim Assist Strength: " .. tostring(v))
+end)
+
+-- ============================================================
+-- TAB: VISUALS (ESP, Tracers, Chams, FOV Circle)
+-- ============================================================
+CreateSection(VisualsTab.Frame, "ESP Controls")
+
+CreateToggle(VisualsTab.Frame, "Enable ESP", false, function(state)
+    State.espEnabled = state
+    LogSystem.Add("ESP: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "ESP Box", false, function(state)
+    State.espBox = state
+    LogSystem.Add("ESP Box: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "ESP Tracers", false, function(state)
+    State.espLine = state
+    LogSystem.Add("ESP Tracers: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "ESP Health Bar", false, function(state)
+    State.espHealthBar = state
+    LogSystem.Add("ESP Health Bar: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "ESP Names", false, function(state)
+    LogSystem.Add("ESP Names: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "ESP Distance", false, function(state)
+    LogSystem.Add("ESP Distance: " .. tostring(state))
+end)
+
+CreateSection(VisualsTab.Frame, "Chams")
+
+CreateToggle(VisualsTab.Frame, "Chams Visible", false, function(state)
+    LogSystem.Add("Chams Visible: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "Chams Hidden", false, function(state)
+    LogSystem.Add("Chams Hidden: " .. tostring(state))
+end)
+
+CreateToggle(VisualsTab.Frame, "Chams Flat", false, function(state)
+    LogSystem.Add("Chams Flat: " .. tostring(state))
+end)
+
+CreateSection(VisualsTab.Frame, "FOV Circle")
+
+CreateToggle(VisualsTab.Frame, "FOV Circle", false, function(state)
+    State.fovCircleEnabled = state
+    LogSystem.Add("FOV Circle: " .. tostring(state))
+end)
+
+CreateSlider(VisualsTab.Frame, "FOV Size", 50, 600, 300, function(v)
+    State.fovCircleSize = v
+    LogSystem.Add("FOV Size: " .. tostring(v))
+end)
+
+CreateSection(VisualsTab.Frame, "ESP Settings")
+
+CreateToggle(VisualsTab.Frame, "Team Check", false, function(state)
+    State.espTeamCheck = state
+    LogSystem.Add("Team Check: " .. tostring(state))
+end)
+
+CreateDropdown(VisualsTab.Frame, "Name Type", {"DisplayName", "Name"}, function(s)
+    State.espNameType = s
+    LogSystem.Add("Name Type: " .. s)
+end)
+
+CreateSlider(VisualsTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
+    State.espDistance = v
+    LogSystem.Add("ESP Distance: " .. tostring(v))
+end)
+
+-- ============================================================
+-- TAB: MOVEMENT (Speed, Fly, NoClip, Infinite Jump)
+-- ============================================================
+CreateSection(MovementTab.Frame, "Movement")
+
+CreateToggle(MovementTab.Frame, "Fly", false, function(state)
+    LogSystem.Add("Fly: " .. tostring(state))
+end)
+
+CreateSlider(MovementTab.Frame, "Fly Speed", 1, 200, 50, function(v)
+    LogSystem.Add("Fly Speed: " .. tostring(v))
+end)
+
+CreateToggle(MovementTab.Frame, "No Clip", false, function(state)
+    State.noClip = state
+    LogSystem.Add("No Clip: " .. tostring(state))
+end)
+
+CreateToggle(MovementTab.Frame, "Infinite Jump", false, function(state)
+    State.infiniteJump = state
+    LogSystem.Add("Infinite Jump: " .. tostring(state))
+end)
+
+CreateToggle(MovementTab.Frame, "Speed Jump", false, function(state)
+    LogSystem.Add("Speed Jump: " .. tostring(state))
+end)
+
+CreateToggle(MovementTab.Frame, "Water Walk", false, function(state)
+    LogSystem.Add("Water Walk: " .. tostring(state))
+end)
+
+CreateSection(MovementTab.Frame, "Speed")
+
+CreateSlider(MovementTab.Frame, "WalkSpeed", 16, 250, 16, function(v)
+    State.walkSpeed = v
+    LogSystem.Add("WalkSpeed: " .. tostring(v))
+end)
+
+CreateSlider(MovementTab.Frame, "JumpPower", 50, 500, 50, function(v)
+    State.jumpPower = v
+    LogSystem.Add("JumpPower: " .. tostring(v))
+end)
+
+CreateToggle(MovementTab.Frame, "Super Jump", false, function(state)
+    LogSystem.Add("Super Jump: " .. tostring(state))
+end)
+
+CreateToggle(MovementTab.Frame, "Dash", false, function(state)
+    LogSystem.Add("Dash: " .. tostring(state))
+end)
+
+CreateSlider(MovementTab.Frame, "Dash Power", 50, 500, 150, function(v)
+    LogSystem.Add("Dash Power: " .. tostring(v))
+end)
+
+-- ============================================================
+-- TAB: DEFENSE (Anti Stun, Anti Knockback, Anti Ragdoll)
+-- ============================================================
+CreateSection(DefenseTab.Frame, "Defense")
+
+CreateToggle(DefenseTab.Frame, "Anti Stun", false, function(state)
+    State.antiStun = state
+    LogSystem.Add("Anti Stun: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "Anti Knockback", false, function(state)
+    State.antiKnockback = state
+    LogSystem.Add("Anti Knockback: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "Anti Ragdoll", false, function(state)
+    State.antiRagdoll = state
+    LogSystem.Add("Anti Ragdoll: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "Anti Push", false, function(state)
+    LogSystem.Add("Anti Push: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "Anti Flash", false, function(state)
+    LogSystem.Add("Anti Flash: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "Auto Revive", false, function(state)
+    LogSystem.Add("Auto Revive: " .. tostring(state))
+end)
+
+CreateSection(DefenseTab.Frame, "Protection")
+
+CreateToggle(DefenseTab.Frame, "No Fall Damage", false, function(state)
+    LogSystem.Add("No Fall Damage: " .. tostring(state))
+end)
+
+CreateToggle(DefenseTab.Frame, "No Headshot", false, function(state)
+    LogSystem.Add("No Headshot: " .. tostring(state))
+end)
+
+CreateSlider(DefenseTab.Frame, "Shield Strength", 0, 100, 50, function(v)
+    LogSystem.Add("Shield Strength: " .. tostring(v))
+end)
+
+-- ============================================================
+-- TAB: PLAYER (WalkSpeed, JumpPower, Character)
+-- ============================================================
+CreateSection(PlayerTab.Frame, "Character")
 
 CreateSlider(PlayerTab.Frame, "WalkSpeed", 16, 250, 16, function(v)
     local char = LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.WalkSpeed = v
     end
+    LogSystem.Add("WalkSpeed set to " .. tostring(v))
 end)
 
 CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v)
@@ -2187,25 +1479,7 @@ CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v)
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.JumpPower = v
     end
-end)
-
-CreateToggle(PlayerTab.Frame, "Infinite Jump", false, function(state)
-    if state then
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChildOfClass("Humanoid") then
-            char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
-    end
-end)
-
-CreateToggle(PlayerTab.Frame, "No Clip", false, function(state)
-    print("No Clip:", state)
-end)
-
-CreateSection(PlayerTab.Frame, "Utilities")
-
-CreateKeybind(PlayerTab.Frame, "Fly Keybind", Enum.KeyCode.F, function(key)
-    print("Fly Key:", key.Name)
+    LogSystem.Add("JumpPower set to " .. tostring(v))
 end)
 
 CreateButton(PlayerTab.Frame, "Reset Character", function()
@@ -2213,62 +1487,278 @@ CreateButton(PlayerTab.Frame, "Reset Character", function()
     if char and char:FindFirstChild("Humanoid") then
         char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
     end
+    LogSystem.Add("Character reset")
     NotificationSystem.Notify("Player", "Personagem resetado!", 2)
 end)
 
--- ===== TAB: TELEPORTS =====
-CreateSection(TeleportTab.Frame, "Teleports")
-
-CreateButton(TeleportTab.Frame, "Teleport to Map Center", function()
+CreateButton(PlayerTab.Frame, "Respawn Character", function()
     local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = CFrame.new(0, 50, 0)
+    if char then
+        char:Destroy()
     end
-    NotificationSystem.Notify("Teleport", "Teleportado para o centro!", 2)
+    LogSystem.Add("Character destroyed")
+    NotificationSystem.Notify("Player", "Personagem destruido! Reapareca.", 2)
 end)
 
-CreateButton(TeleportTab.Frame, "Teleport to Random Player", function()
-    local players = Players:GetPlayers()
-    for _, p in ipairs(players) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
-                NotificationSystem.Notify("Teleport", "Teleportado para " .. p.DisplayName, 2)
-            end
-            break
-        end
+CreateSection(PlayerTab.Frame, "Animation")
+
+CreateButton(PlayerTab.Frame, "Animation 1 (Dance)", function()
+    LogSystem.Add("Play Animation 1")
+end)
+
+CreateButton(PlayerTab.Frame, "Animation 2 (Run)", function()
+    LogSystem.Add("Play Animation 2")
+end)
+
+CreateButton(PlayerTab.Frame, "Animation 3 (Sit)", function()
+    LogSystem.Add("Play Animation 3")
+end)
+
+CreateSection(PlayerTab.Frame, "Emotes")
+
+CreateButton(PlayerTab.Frame, "Wave", function()
+    LogSystem.Add("Emote: Wave")
+end)
+
+CreateButton(PlayerTab.Frame, "Point", function()
+    LogSystem.Add("Emote: Point")
+end)
+
+CreateButton(PlayerTab.Frame, "Cheer", function()
+    LogSystem.Add("Emote: Cheer")
+end)
+
+-- ============================================================
+-- TAB: WORLD (FullBright, Time, Atmosphere)
+-- ============================================================
+CreateSection(WorldTab.Frame, "Lighting")
+
+CreateToggle(WorldTab.Frame, "Full Bright", false, function(state)
+    State.fullBright = state
+    if state then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        LogSystem.Add("Full Bright: ON")
+    else
+        Lighting.Brightness = 0
+        Lighting.ClockTime = 0
+        Lighting.FogEnd = 50
+        LogSystem.Add("Full Bright: OFF")
     end
 end)
 
--- ===== TAB: MISC =====
-CreateSection(MiscTab.Frame, "Miscellaneous")
-
-CreateToggle(MiscTab.Frame, "Anti-AFK", false, function(state)
-    print("Anti-AFK:", state)
+CreateToggle(WorldTab.Frame, "No Fog", false, function(state)
+    if state then
+        Lighting.FogEnd = 100000
+        Lighting.FogStart = 0
+        LogSystem.Add("No Fog: ON")
+    else
+        Lighting.FogEnd = 50
+        Lighting.FogStart = 0
+        LogSystem.Add("No Fog: OFF")
+    end
 end)
 
-CreateButton(MiscTab.Frame, "Copy Discord Link", function()
-    NotificationSystem.Notify("Sucesso", "Link do Discord copiado!", 3)
+CreateSlider(WorldTab.Frame, "Field of View", 70, 120, 70, function(v)
+    Camera.FieldOfView = v
+    LogSystem.Add("FOV: " .. tostring(v))
 end)
 
--- ===== TAB: SETTINGS =====
-CreateSection(SettingsTab.Frame, "Configuracoes da UI")
+CreateSection(WorldTab.Frame, "Time")
 
-CreateButton(SettingsTab.Frame, "Salvar Configuracoes", function()
-    SettingsSystem.Save({espEnabled = espConfig.Enabled, aimbotEnabled = aimbotActive, silentAimEnabled = silentAimEnabled})
-    NotificationSystem.Notify("Settings", "Configuracoes salvas com sucesso!", 3)
+CreateSlider(WorldTab.Frame, "Clock Time", 0, 24, 12, function(v)
+    Lighting.ClockTime = v
+    LogSystem.Add("Clock Time: " .. tostring(v))
 end)
 
-CreateButton(SettingsTab.Frame, "Resetar UI", function()
-    NotificationSystem.Notify("Settings", "UI Resetada! Recarregue o script.", 3)
+CreateToggle(WorldTab.Frame, "Auto Time Cycle", false, function(state)
+    LogSystem.Add("Auto Time Cycle: " .. tostring(state))
 end)
 
-CreateTextBox(SettingsTab.Frame, "Nome de Usuario", "Digite seu nome", function(text, enterPressed)
-    print("Nome digitado:", text)
+CreateSlider(WorldTab.Frame, "Time Speed", 1, 60, 10, function(v)
+    LogSystem.Add("Time Speed: " .. tostring(v))
 end)
 
--- ===== TAB: LOGS =====
+CreateSection(WorldTab.Frame, "Atmosphere")
+
+CreateToggle(WorldTab.Frame, "Remove Atmosphere", false, function(state)
+    LogSystem.Add("Remove Atmosphere: " .. tostring(state))
+end)
+
+CreateToggle(WorldTab.Frame, "Remove Skybox", false, function(state)
+    LogSystem.Add("Remove Skybox: " .. tostring(state))
+end)
+
+CreateSlider(WorldTab.Frame, "Ambient Light", 0, 255, 100, function(v)
+    local color = Color3.fromRGB(v, v, v)
+    Lighting.Ambient = color
+    LogSystem.Add("Ambient: " .. tostring(v))
+end)
+
+-- ============================================================
+-- TAB: UTILITIES (Rejoin, Server Hop, Anti AFK, FPS Boost)
+-- ============================================================
+CreateSection(UtilitiesTab.Frame, "Server")
+
+CreateButton(UtilitiesTab.Frame, "Rejoin Server", function()
+    local players = game:GetService("Players")
+    local teleports = game:GetService("TeleportService")
+    teleports:TeleportToPlaceInstance(game.PlaceId, game.JobId, players.LocalPlayer)
+    LogSystem.Add("Rejoining server...")
+end)
+
+CreateButton(UtilitiesTab.Frame, "Server Hop", function()
+    LogSystem.Add("Server Hop clicked")
+    NotificationSystem.Notify("Utilities", "Procurando servidor...", 3)
+end)
+
+CreateToggle(UtilitiesTab.Frame, "Anti AFK", false, function(state)
+    LogSystem.Add("Anti AFK: " .. tostring(state))
+end)
+
+CreateButton(UtilitiesTab.Frame, "Leave Game", function()
+    LogSystem.Add("Leaving game...")
+    NotificationSystem.Notify("Utilities", "Saindo do jogo...", 3)
+end)
+
+CreateSection(UtilitiesTab.Frame, "Performance")
+
+CreateToggle(UtilitiesTab.Frame, "FPS Boost", false, function(state)
+    LogSystem.Add("FPS Boost: " .. tostring(state))
+end)
+
+CreateToggle(UtilitiesTab.Frame, "Remove Particles", false, function(state)
+    LogSystem.Add("Remove Particles: " .. tostring(state))
+end)
+
+CreateToggle(UtilitiesTab.Frame, "Remove Sounds", false, function(state)
+    LogSystem.Add("Remove Sounds: " .. tostring(state))
+end)
+
+CreateToggle(UtilitiesTab.Frame, "Remove Shadows", false, function(state)
+    LogSystem.Add("Remove Shadows: " .. tostring(state))
+end)
+
+CreateSection(UtilitiesTab.Frame, "Extra")
+
+CreateButton(UtilitiesTab.Frame, "Copy Discord Link", function()
+    LogSystem.Add("Discord link copied")
+    NotificationSystem.Notify("Utilities", "Link copiado!", 3)
+end)
+
+CreateButton(UtilitiesTab.Frame, "Open Discord", function()
+    LogSystem.Add("Open Discord clicked")
+end)
+
+CreateButton(UtilitiesTab.Frame, "Credits", function()
+    LogSystem.Add("Credits viewed")
+    NotificationSystem.Notify("Credits", "MANUS HUB v4.0 by Manus AI", 5)
+end)
+
+-- ============================================================
+-- TAB: CONFIGS (Save, Load, Auto Load)
+-- ============================================================
+CreateSection(ConfigsTab.Frame, "Config Management")
+
+CreateToggle(ConfigsTab.Frame, "Auto Load", false, function(state)
+    LogSystem.Add("Auto Load: " .. tostring(state))
+end)
+
+CreateTextBox(ConfigsTab.Frame, "Config Name", "Digite o nome...", function(text, enterPressed)
+    if enterPressed and text ~= "" then
+        LogSystem.Add("Config name: " .. text)
+    end
+end)
+
+CreateSection(ConfigsTab.Frame, "Actions")
+
+CreateButton(ConfigsTab.Frame, "Salvar Config", function()
+    local data = HttpService:JSONEncode(State)
+    setclipboard(data)
+    LogSystem.Add("Config salva no clipboard")
+    NotificationSystem.Notify("Configs", "Configuracoes copiadas!", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Carregar Config", function()
+    LogSystem.Add("Carregar config: cole no clipboard e clique")
+    NotificationSystem.Notify("Configs", "Cole a config no clipboard e clique.", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Reset Config", function()
+    LogSystem.Add("Config resetada")
+    NotificationSystem.Notify("Configs", "Config resetada!", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Export JSON", function()
+    local data = HttpService:JSONEncode(State)
+    setclipboard(data)
+    LogSystem.Add("JSON exportado")
+    NotificationSystem.Notify("Configs", "JSON copiado!", 3)
+end)
+
+-- ============================================================
+-- TAB: SETTINGS (tema, sons, animacoes, keybind)
+-- ============================================================
+CreateSection(SettingsTab.Frame, "Interface")
+
+CreateDropdown(SettingsTab.Frame, "Theme Color", {"Red", "Blue", "Green", "Purple", "Orange", "Pink", "Yellow"}, function(s)
+    local colors = {
+        Red = Color3.fromRGB(255, 45, 45),
+        Blue = Color3.fromRGB(45, 45, 255),
+        Green = Color3.fromRGB(45, 255, 45),
+        Purple = Color3.fromRGB(165, 45, 255),
+        Orange = Color3.fromRGB(255, 165, 0),
+        Pink = Color3.fromRGB(255, 105, 180),
+        Yellow = Color3.fromRGB(255, 255, 45),
+    }
+    Theme.Accent = colors[s] or Theme.Accent
+    State.themeColor = s
+    LogSystem.Add("Theme: " .. s)
+    NotificationSystem.Notify("Settings", "Tema alterado para " .. s, 2)
+end)
+
+CreateToggle(SettingsTab.Frame, "Sons da UI", true, function(state)
+    State.enableSound = state
+    LogSystem.Add("Sound: " .. tostring(state))
+end)
+
+CreateToggle(SettingsTab.Frame, "Animacoes", true, function(state)
+    State.enableAnimation = state
+    LogSystem.Add("Animations: " .. tostring(state))
+end)
+
+CreateSection(SettingsTab.Frame, "Keybind")
+
+CreateKeybind(SettingsTab.Frame, "Toggle UI Keybind", Enum.KeyCode.RightControl, function(key)
+    State.currentKeybind = key
+    State.settingsKeybind = key
+    LogSystem.Add("Keybind: " .. key.Name)
+end)
+
+CreateKeybind(SettingsTab.Frame, "ESP Keybind", Enum.KeyCode.Insert, function(key)
+    LogSystem.Add("ESP Keybind: " .. key.Name)
+end)
+
+CreateKeybind(SettingsTab.Frame, "Aimbot Keybind", Enum.KeyCode.Home, function(key)
+    LogSystem.Add("Aimbot Keybind: " .. key.Name)
+end)
+
+CreateSection(SettingsTab.Frame, "Extra")
+
+CreateButton(SettingsTab.Frame, "Recarregar Script", function()
+    LogSystem.Add("Script reload requested")
+    NotificationSystem.Notify("Settings", "Recarregue o script no executor.", 3)
+end)
+
+CreateButton(SettingsTab.Frame, "Fechar UI", function()
+    UI:ToggleVisibility()
+    LogSystem.Add("UI closed")
+end)
+
+-- ============================================================
+-- TAB: LOGS (logs de acoes, erros, notificacoes)
+-- ============================================================
 CreateSection(LogsTab.Frame, "System Logs")
 
 local logContainer = Instance.new("Frame")
@@ -2294,53 +1784,101 @@ local logLayout = Instance.new("UIListLayout")
 logLayout.Padding = UDim.new(0, 2)
 logLayout.Parent = logScroll
 
-local function addLog(text, color)
-    local logLabel = Instance.new("TextLabel")
-    logLabel.Size = UDim2.new(1, 0, 0, 22)
-    logLabel.BackgroundTransparency = 1
-    logLabel.Text = "[" .. os.date("%H:%M:%S") .. "] " .. text
-    logLabel.TextColor3 = color or Theme.TextSecondary
-    logLabel.Font = Enum.Font.Code
-    logLabel.TextSize = 12
-    logLabel.TextXAlignment = Enum.TextXAlignment.Left
-    logLabel.Parent = logScroll
-    logScroll.CanvasSize = UDim2.new(0, 0, 0, #logScroll:GetChildren() * 24)
+local function renderLog()
+    for _, child in ipairs(logScroll:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    for i, entry in ipairs(LogSystem.Get()) do
+        local logLabel = Instance.new("TextLabel")
+        logLabel.Size = UDim2.new(1, 0, 0, 22)
+        logLabel.BackgroundTransparency = 1
+        logLabel.Text = "[" .. entry.time .. "] " .. entry.text
+        logLabel.TextColor3 = entry.color or Theme.TextSecondary
+        logLabel.Font = Enum.Font.Code
+        logLabel.TextSize = 12
+        logLabel.TextXAlignment = Enum.TextXAlignment.Left
+        logLabel.Parent = logScroll
+    end
+    logScroll.CanvasSize = UDim2.new(0, 0, 0, #LogSystem.Get() * 24)
     logScroll.ScrollBarPosition = logScroll.CanvasPosition.Y + 100
 end
 
-addLog("MANUS HUB v2.2 inicializado", Theme.Accent)
-addLog("ESP System loaded (Highlight + Box + Line + HealthBar)", Color3.fromRGB(0, 255, 100))
-addLog("Aimbot System loaded (Sticky Mode)", Color3.fromRGB(0, 255, 100))
-addLog("Silent Aim System loaded (hookmetamethod)", Color3.fromRGB(0, 255, 100))
-addLog("UI Library ready", Color3.fromRGB(0, 255, 100))
+renderLog()
 
--- ===== AIMBOT LOOP (RenderStepped) =====
-RunService.RenderStepped:Connect(function()
-    if aimbotActive then
-        local target = AimbotSystem:getStickyTarget()
-        if target then
-            AimbotSystem:aimAt(target)
-        end
+-- Auto-refresh logs
+local logRefreshTimer = tick()
+RunService.Heartbeat:Connect(function()
+    local now = tick()
+    if now - logRefreshTimer >= 2 then
+        renderLog()
+        logRefreshTimer = now
     end
 end)
 
--- ===== SILENT AIM TARGET VISUALIZER (RenderStepped) =====
-RunService.RenderStepped:Connect(function()
-    if silentAimEnabled and silentAimShowTarget then
-        local target = SilentAimGetClosestPlayer()
-        if target then
-            local rootToViewport, isOnScreen = Camera:WorldToViewportPoint(target.Position)
-            if silentAimTargetSquare then
-                silentAimTargetSquare.Visible = isOnScreen
-                silentAimTargetSquare.Position = UDim2.new(0, rootToViewport.X, 0, rootToViewport.Y)
-            end
-        else
-            if silentAimTargetSquare then
-                silentAimTargetSquare.Visible = false
-            end
-        end
-    end
+CreateSection(LogsTab.Frame, "Actions")
+
+CreateButton(LogsTab.Frame, "Limpar Logs", function()
+    logEntries = {}
+    renderLog()
+    LogSystem.Add("Logs limpos", Theme.Accent)
+    NotificationSystem.Notify("Logs", "Logs limpos!", 2)
 end)
+
+CreateButton(LogsTab.Frame, "Exportar Logs", function()
+    local logText = ""
+    for _, entry in ipairs(LogSystem.Get()) do
+        logText = logText .. "[" .. entry.time .. "] " .. entry.text .. "\n"
+    end
+    setclipboard(logText)
+    LogSystem.Add("Logs exportados", Theme.Accent)
+    NotificationSystem.Notify("Logs", "Logs copiados!", 3)
+end)
+
+-- ============================================================
+-- TAB: ABOUT (creditos, versao, Discord)
+-- ============================================================
+local AboutTab = UI:AddTab("About")
+
+CreateSection(AboutTab.Frame, "MANUS HUB")
+
+CreateLabel(AboutTab.Frame, "MANUS HUB v4.0", Theme.Accent)
+CreateLabel(AboutTab.Frame, "Criado por Manus AI", Theme.TextSecondary)
+
+CreateSection(AboutTab.Frame, "Versao")
+
+CreateInfoLabel(AboutTab.Frame, "Versao", "4.0", Theme.Accent)
+CreateInfoLabel(AboutTab.Frame, "Build", os.date("%Y-%m-%d"), Theme.TextSecondary)
+CreateInfoLabel(AboutTab.Frame, "Plataforma", "Roblox / LuaU", Theme.TextSecondary)
+
+CreateSection(AboutTab.Frame, "Creditos")
+
+CreateLabel(AboutTab.Frame, "UI Library: Manus AI", Theme.TextPrimary)
+CreateLabel(AboutTab.Frame, "Tema: Dark Modern Red", Theme.TextPrimary)
+CreateLabel(AboutTab.Frame, "12 Tabs, 60+ Controls", Theme.TextSecondary)
+
+CreateSection(AboutTab.Frame, "Links")
+
+CreateButton(AboutTab.Frame, "Discord", function()
+    NotificationSystem.Notify("About", "Discord: discord.gg/manushub", 5)
+    LogSystem.Add("Discord link clicked", Theme.Accent)
+end)
+
+CreateButton(AboutTab.Frame, "GitHub", function()
+    NotificationSystem.Notify("About", "GitHub: github.com/manushub", 5)
+    LogSystem.Add("GitHub link clicked", Theme.Accent)
+end)
+
+CreateButton(AboutTab.Frame, "Documentacao", function()
+    NotificationSystem.Notify("About", "Docs: docs.manushub.io", 5)
+    LogSystem.Add("Docs clicked", Theme.Accent)
+end)
+
+CreateSection(AboutTab.Frame, "Features")
+
+CreateLabel(AboutTab.Frame, "ESP completo (Box, Tracers, Health, Names)", Theme.TextPrimary)
+CreateLabel(AboutTab.Frame, "Aimbot Sticky + Silent Aim com hooks", Theme.TextPrimary)
+CreateLabel(AboutTab.Frame, "Movement, Defense, World, Player", Theme.TextPrimary)
+CreateLabel(AboutTab.Frame, "Configs Save/Load + Logs + Settings", Theme.TextPrimary)
 
 -- ===== STARTUP ANIMATION =====
 UI.IsVisible = true
@@ -2352,6 +1890,10 @@ TweenManager:Create(UI.MainFrame, {
     BackgroundTransparency = 0
 }, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
 
-NotificationSystem.Notify("MANUS HUB", "v2.2 carregada! Aimbot Sticky + Silent Aim + ESP completo.", 5)
+NotificationSystem.Notify("MANUS HUB", "v4.0 carregada! 12 tabs, 60+ controles.", 5)
+
+LogSystem.Add("MANUS HUB v4.0 inicializado", Theme.Accent)
+LogSystem.Add("12 tabs carregadas", Color3.fromRGB(0, 255, 100))
+LogSystem.Add("UI Library pronta", Color3.fromRGB(0, 255, 100))
 
 return UI

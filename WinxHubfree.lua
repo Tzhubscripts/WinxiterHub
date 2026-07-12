@@ -1290,10 +1290,10 @@ local function AddESP(player)
         ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     })
     grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1), -- Invertido: transparente embaixo
-        NumberSequenceKeypoint.new(1, 0)  -- Invertido: solido em cima (no botStroke que fica na base)
+        NumberSequenceKeypoint.new(0, 0), -- Solido na base (0)
+        NumberSequenceKeypoint.new(1, 1)  -- Transparente no topo (1)
     })
-    grad.Rotation = 90
+    grad.Rotation = -90 -- Invertido para o solido ficar na base do botStroke
     grad.Parent = botStroke
 
     -- Side lines
@@ -1315,10 +1315,10 @@ local function AddESP(player)
     rightLine.ZIndex = 7
     rightLine.Parent = boxBg
 
-    -- Line (tracer) - Top Down
+    -- Line (tracer) - Top Center Origin
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0, 2, 0, 0)
-    line.Position = UDim2.new(0.5, 0, 0, 0) -- Comeca no topo da tela
+    line.Position = UDim2.new(0.5, 0, 0, 0) -- Origem fixa: Centro Superior
     line.AnchorPoint = Vector2.new(0.5, 0)
     line.BackgroundTransparency = 1
     line.BorderSizePixel = 0
@@ -1490,19 +1490,20 @@ RunService.RenderStepped:Connect(function()
             })
         end
 
-        -- LINE (Tracer Top-Down: do topo da tela ate a cabeça)
+        -- LINE (Tracer Top-Down: do centro do topo ate a cabeça)
         if State.espLine and data.lineFrame then
             data.lineFrame.Visible = true
-            data.lineFrame.Position = UDim2.new(0, boxX, 0, 0)
+            local origin = Vector2.new(Camera.ViewportSize.X / 2, 0)
+            local target = Vector2.new(boxX, boxY)
+            local distance = (target - origin).Magnitude
+            local angle = math.deg(math.atan2(target.Y - origin.Y, target.X - origin.X))
+
+            data.lineFrame.Position = UDim2.new(0, origin.X, 0, origin.Y)
+            data.lineFrame.Size = UDim2.new(0, distance, 0, State.lineThickness)
+            data.lineFrame.Rotation = angle
+            data.lineFrame.AnchorPoint = Vector2.new(0, 0.5)
             data.lineFrame.BackgroundColor3 = State.espColor
             data.lineFrame.BackgroundTransparency = 0.3
-
-            local lineH = boxY -- Distancia do topo ate o topo da caixa (cabeca)
-            if lineH > 0 then
-                data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, lineH)
-            else
-                data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, 0)
-            end
         else
             data.lineFrame.Visible = false
         end

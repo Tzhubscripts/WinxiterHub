@@ -17,8 +17,8 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local Camera = Workspace.CurrentCamera
 local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
 
 local LocalPlayer = Players.LocalPlayer
 local LocalMouse = LocalPlayer:GetMouse()
@@ -30,7 +30,6 @@ local State = {
     aimbotFOV = 150,
     aimbotSmoothness = 3,
     aimbotSticky = true,
-    aimbotTargetPart = "Head",
     aimbotCurrentTarget = nil,
     aimbotHitChance = 100,
     noRecoilEnabled = false,
@@ -89,7 +88,9 @@ function TweenMgr.Ripple(inst, color)
         r.Position = UDim2.new(0.5, 0, 0.5, 0)
         r.Size = UDim2.new(0, 0, 0, 0)
         r.Parent = inst
-        Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = r
+        local rCorner = Instance.new("UICorner")
+        rCorner.CornerRadius = UDim.new(1, 0)
+        rCorner.Parent = r
         TweenMgr.Create(r, {Size = UDim2.new(1.5, 0, 1.5, 0), BackgroundTransparency = 1}, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
         task.delay(0.6, function() r:Destroy() end)
     end)
@@ -114,7 +115,9 @@ function Notify(title, text, dur)
     nf.BackgroundColor3 = Theme.Section
     nf.BorderSizePixel = 0
     nf.Parent = sg
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = nf
+    local nCorner = Instance.new("UICorner")
+    nCorner.CornerRadius = Theme.CornerRadius
+    nCorner.Parent = nf
     local us = Instance.new("UIStroke")
     us.Color = Theme.Accent
     us.Thickness = 1.5
@@ -124,7 +127,9 @@ function Notify(title, text, dur)
     ab.BackgroundColor3 = Theme.Accent
     ab.BorderSizePixel = 0
     ab.Parent = nf
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = ab
+    local aCorner = Instance.new("UICorner")
+    aCorner.CornerRadius = Theme.CornerRadius
+    aCorner.Parent = ab
     local tl = Instance.new("TextLabel")
     tl.Size = UDim2.new(1, -20, 0, 28)
     tl.Position = UDim2.new(0, 10, 0, 6)
@@ -135,18 +140,18 @@ function Notify(title, text, dur)
     tl.TextSize = 15
     tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.Parent = nf
-    local xel = Instance.new("TextLabel")
-    xel.Size = UDim2.new(1, -20, 0, 42)
-    xel.Position = UDim2.new(0, 10, 0, 34)
-    xel.BackgroundTransparency = 1
-    xel.Text = text
-    xel.TextColor3 = Theme.TextPrimary
-    xel.Font = Theme.Font
-    xel.TextSize = 13
-    xel.TextWrapped = true
-    xel.TextXAlignment = Enum.TextXAlignment.Left
-    xel.TextYAlignment = Enum.TextYAlignment.Top
-    xel.Parent = nf
+    local xl = Instance.new("TextLabel")
+    xl.Size = UDim2.new(1, -20, 0, 42)
+    xl.Position = UDim2.new(0, 10, 0, 34)
+    xl.BackgroundTransparency = 1
+    xl.Text = text
+    xl.TextColor3 = Theme.TextPrimary
+    xl.Font = Theme.Font
+    xl.TextSize = 13
+    xl.TextWrapped = true
+    xl.TextXAlignment = Enum.TextXAlignment.Left
+    xl.TextYAlignment = Enum.TextYAlignment.Top
+    xl.Parent = nf
     table.insert(NotifyList, nf)
     TweenMgr.Create(nf, {Position = UDim2.new(1, -300, 1, -100 - ((#NotifyList - 1) * 95))})
     task.delay(dur, function()
@@ -194,7 +199,9 @@ local function CreateButton(parent, text, callback)
     bf.BackgroundColor3 = Theme.Section
     bf.BorderSizePixel = 0
     bf.Parent = parent
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = bf
+    local bCorner = Instance.new("UICorner")
+    bCorner.CornerRadius = Theme.CornerRadius
+    bCorner.Parent = bf
     local us = Instance.new("UIStroke")
     us.Color = Theme.Stroke
     us.Thickness = 1
@@ -219,7 +226,9 @@ local function CreateToggle(parent, text, default, callback)
     tf.BackgroundColor3 = Theme.Section
     tf.BorderSizePixel = 0
     tf.Parent = parent
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = tf
+    local tCorner = Instance.new("UICorner")
+    tCorner.CornerRadius = Theme.CornerRadius
+    tCorner.Parent = tf
     local us = Instance.new("UIStroke")
     us.Color = Theme.Stroke
     us.Thickness = 1
@@ -240,14 +249,18 @@ local function CreateToggle(parent, text, default, callback)
     sbg.Position = UDim2.new(1, -53, 0.5, -9)
     sbg.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50, 50, 50)
     sbg.Parent = tf
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = sbg
+    local swCorner = Instance.new("UICorner")
+    swCorner.CornerRadius = UDim.new(1, 0)
+    swCorner.Parent = sbg
     local sc = Instance.new("Frame")
     sc.Name = "SwitchCircle"
     sc.Size = UDim2.new(0, 14, 0, 14)
     sc.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
     sc.BackgroundColor3 = Color3.new(1, 1, 1)
     sc.Parent = sbg
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = sc
+    local scc = Instance.new("UICorner")
+    scc.CornerRadius = UDim.new(1, 0)
+    scc.Parent = sc
     local cb = Instance.new("TextButton")
     cb.Size = UDim2.new(1, 0, 1, 0)
     cb.BackgroundTransparency = 1
@@ -269,7 +282,9 @@ local function CreateSlider(parent, text, min, max, default, callback)
     sf.BackgroundColor3 = Theme.Section
     sf.BorderSizePixel = 0
     sf.Parent = parent
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = sf
+    local sCorner = Instance.new("UICorner")
+    sCorner.CornerRadius = Theme.CornerRadius
+    sCorner.Parent = sf
     local us = Instance.new("UIStroke")
     us.Color = Theme.Stroke
     us.Thickness = 1
@@ -302,13 +317,17 @@ local function CreateSlider(parent, text, min, max, default, callback)
     bg.Text = ""
     bg.AutoButtonColor = false
     bg.Parent = sf
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = bg
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(1, 0)
+    barCorner.Parent = bg
     local fl = Instance.new("Frame")
     fl.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     fl.BackgroundColor3 = Theme.Accent
     fl.BorderSizePixel = 0
     fl.Parent = bg
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = fl
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fl
     local dragging = false
     local function update(input)
         local pos = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
@@ -358,7 +377,9 @@ local function CreateInfoLabel(parent, text, value, valueColor)
     ifr.BackgroundColor3 = Theme.Section
     ifr.BorderSizePixel = 0
     ifr.Parent = parent
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = ifr
+    local iCorner = Instance.new("UICorner")
+    iCorner.CornerRadius = Theme.CornerRadius
+    iCorner.Parent = ifr
     local us = Instance.new("UIStroke")
     us.Color = Theme.Stroke
     us.Thickness = 1
@@ -401,7 +422,7 @@ function UILib.new(opts)
     self.IsVisible = false
 
     self.ScreenGui = Instance.new("ScreenGui")
-    self.ScreenGui.Name = "ManusHub_" .. tostring(math.random(1000, 9999))
+    self.ScreenGui.Name = "MikasaHub_" .. tostring(math.random(1000, 9999))
     self.ScreenGui.ResetOnSpawn = false
     self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.ScreenGui.Enabled = true
@@ -422,24 +443,26 @@ function UILib.new(opts)
     self.MainFrame.ClipsDescendants = true
     self.MainFrame.Parent = self.ScreenGui
 
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = self.MainFrame
-    local ms = Instance.new("UIStroke")
-    ms.Color = Theme.Stroke
-    ms.Thickness = 1.5
-    ms.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    ms.Parent = self.MainFrame
-    local mg = Instance.new("UIGradient")
-    mg.Color = ColorSequence.new({
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = Theme.CornerRadius
+    mainCorner.Parent = self.MainFrame
+    local mainStroke = Instance.new("UIStroke")
+    mainStroke.Color = Theme.Stroke
+    mainStroke.Thickness = 1.5
+    mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    mainStroke.Parent = self.MainFrame
+    local mainGrad = Instance.new("UIGradient")
+    mainGrad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 25)),
         ColorSequenceKeypoint.new(1, Theme.Background)
     })
-    mg.Rotation = 45
-    mg.Parent = self.MainFrame
-    local sh = Instance.new("UIStroke")
-    sh.Color = Theme.Shadow
-    sh.Thickness = 5
-    sh.Transparency = Theme.ShadowTransparency
-    sh.Parent = self.MainFrame
+    mainGrad.Rotation = 45
+    mainGrad.Parent = self.MainFrame
+    local mainShadow = Instance.new("UIStroke")
+    mainShadow.Color = Theme.Shadow
+    mainShadow.Thickness = 5
+    mainShadow.Transparency = Theme.ShadowTransparency
+    mainShadow.Parent = self.MainFrame
 
     -- Sidebar
     self.Sidebar = Instance.new("Frame")
@@ -447,7 +470,9 @@ function UILib.new(opts)
     self.Sidebar.BackgroundColor3 = Theme.Sidebar
     self.Sidebar.BorderSizePixel = 0
     self.Sidebar.Parent = self.MainFrame
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = self.Sidebar
+    local sbCorner = Instance.new("UICorner")
+    sbCorner.CornerRadius = Theme.CornerRadius
+    sbCorner.Parent = self.Sidebar
 
     -- Logo
     local logo = Instance.new("TextLabel")
@@ -475,7 +500,9 @@ function UILib.new(opts)
     searchF.Position = UDim2.new(0.05, 0, 0, 68)
     searchF.BackgroundColor3 = Theme.Section
     searchF.Parent = self.Sidebar
-    Instance.new("UICorner").CornerRadius = UDim.new(0, 6).Parent = searchF
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 6)
+    searchCorner.Parent = searchF
 
     local searchI = Instance.new("TextBox")
     searchI.Size = UDim2.new(1, -10, 1, 0)
@@ -509,15 +536,22 @@ function UILib.new(opts)
     pi.BackgroundColor3 = Theme.Section
     pi.BorderSizePixel = 0
     pi.Parent = self.Sidebar
-    Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = pi
+    local piCorner = Instance.new("UICorner")
+    piCorner.CornerRadius = Theme.CornerRadius
+    piCorner.Parent = pi
 
     local av = Instance.new("ImageLabel")
     av.Size = UDim2.new(0, 40, 0, 40)
     av.Position = UDim2.new(0, 10, 0, 12)
     av.BackgroundColor3 = Theme.Background
-    av.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+    local okAv, avUrl = pcall(function()
+        return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+    end)
+    if okAv then av.Image = avUrl else av.Image = "rbxassetid://0" end
     av.Parent = pi
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = av
+    local avCorner = Instance.new("UICorner")
+    avCorner.CornerRadius = UDim.new(1, 0)
+    avCorner.Parent = av
 
     local nl = Instance.new("TextLabel")
     nl.Size = UDim2.new(1, -60, 0, 20)
@@ -557,15 +591,15 @@ function UILib.new(opts)
     fpsL.TextSize = 10
     fpsL.TextXAlignment = Enum.TextXAlignment.Center
     fpsL.Parent = fpsF
-    local lu = tick()
-    local fr = 0
+    local fpsLu = tick()
+    local fpsFr = 0
     RunService.RenderStepped:Connect(function()
-        fr = fr + 1
+        fpsFr = fpsFr + 1
         local now = tick()
-        if now - lu >= 1 then
-            fpsL.Text = string.format("FPS: %d | %s", fr, os.date("%X"))
-            fr = 0
-            lu = now
+        if now - fpsLu >= 1 then
+            fpsL.Text = string.format("FPS: %d | %s", fpsFr, os.date("%X"))
+            fpsFr = 0
+            fpsLu = now
         end
     end)
 
@@ -609,7 +643,9 @@ function UILib.new(opts)
     cb.Font = Theme.FontBold
     cb.TextSize = 14
     cb.Parent = self.MainFrame
-    Instance.new("UICorner").CornerRadius = UDim.new(0, 4).Parent = cb
+    local cbCorner = Instance.new("UICorner")
+    cbCorner.CornerRadius = UDim.new(0, 4)
+    cbCorner.Parent = cb
     cb.MouseButton1Click:Connect(function()
         self:ToggleVisibility()
         Notify("Aviso", "Pressione o botao flutuante M para abrir.", 3)
@@ -626,7 +662,9 @@ function UILib.new(opts)
     mb.Font = Theme.FontBold
     mb.TextSize = 14
     mb.Parent = self.MainFrame
-    Instance.new("UICorner").CornerRadius = UDim.new(0, 4).Parent = mb
+    local mbCorner = Instance.new("UICorner")
+    mbCorner.CornerRadius = UDim.new(0, 4)
+    mbCorner.Parent = mb
     local minimized = false
     mb.MouseButton1Click:Connect(function()
         minimized = not minimized
@@ -637,7 +675,10 @@ function UILib.new(opts)
             mb.Text = "+"
         else
             TweenMgr.Create(self.MainFrame, {Size = UDim2.new(0, 620, 0, 430)})
-            task.delay(0.3, function() self.ContentArea.Visible = true; self.Sidebar.Visible = true end)
+            task.delay(0.3, function()
+                self.ContentArea.Visible = true
+                self.Sidebar.Visible = true
+            end)
             mb.Text = "-"
         end
     end)
@@ -653,8 +694,13 @@ function UILib.new(opts)
     ftb.TextSize = 22
     ftb.Parent = self.ScreenGui
     ftb.ZIndex = 10
-    Instance.new("UICorner").CornerRadius = UDim.new(1, 0).Parent = ftb
-    Instance.new("UIStroke").Color = Theme.Stroke.Thickness = 1.Parent = ftb
+    local ftbCorner = Instance.new("UICorner")
+    ftbCorner.CornerRadius = UDim.new(1, 0)
+    ftbCorner.Parent = ftb
+    local ftbStroke = Instance.new("UIStroke")
+    ftbStroke.Color = Theme.Stroke
+    ftbStroke.Thickness = 1
+    ftbStroke.Parent = ftb
     ftb.MouseButton1Click:Connect(function() self:ToggleVisibility() end)
 
     return self
@@ -684,7 +730,9 @@ function UILib:AddTab(name)
     tb.Font = Theme.Font
     tb.TextSize = 13
     tb.Parent = self.TabContainer
-    Instance.new("UICorner").CornerRadius = UDim.new(0, 6).Parent = tb
+    local tbCorner = Instance.new("UICorner")
+    tbCorner.CornerRadius = UDim.new(0, 6)
+    tbCorner.Parent = tb
 
     local tf = Instance.new("ScrollingFrame")
     tf.Size = UDim2.new(1, 0, 1, 0)
@@ -720,7 +768,11 @@ function UILib:AddTab(name)
 
     table.insert(self.Tabs, tab)
     if not self.ActiveTab then
-        tb:Fire()
+        -- Select first tab
+        self.ActiveTab = tab
+        tab.Button.TextColor3 = Theme.Accent
+        TweenMgr.Create(tab.Button, {BackgroundTransparency = 0.8})
+        tab.Frame.Visible = true
     end
     return tab
 end
@@ -744,7 +796,7 @@ CreateSection(HomeTab.Frame, "Status")
 local serverLabel = CreateInfoLabel(HomeTab.Frame, "Server", "Carregando...", Color3.fromRGB(0, 255, 100))
 local pingLabel = CreateInfoLabel(HomeTab.Frame, "Ping", "--ms", Color3.fromRGB(0, 255, 100))
 local uptimeLabel = CreateInfoLabel(HomeTab.Frame, "Uptime", "00:00:00", Theme.TextSecondary)
-local fpsLabel = CreateInfoLabel(HomeTab.Frame, "FPS", "--", Color3.fromRGB(0, 255, 100))
+local fpsInfoLabel = CreateInfoLabel(HomeTab.Frame, "FPS", "--", Color3.fromRGB(0, 255, 100))
 
 -- Live updates for Home
 local homeFrames = 0
@@ -753,16 +805,13 @@ RunService.RenderStepped:Connect(function()
     homeFrames = homeFrames + 1
     local now = tick()
     if now - homeLast >= 1 then
-        -- FPS
-        local vf = fpsLabel:FindFirstChildWhichIsA("TextLabel")
+        local vf = fpsInfoLabel:FindFirstChildWhichIsA("TextLabel")
         if vf then vf.Text = tostring(homeFrames) end
 
-        -- Ping (simulated)
         local ping = math.floor(math.random(15, 60))
         local pv = pingLabel:FindFirstChildWhichIsA("TextLabel")
         if pv then pv.Text = ping .. "ms" end
 
-        -- Uptime
         local elapsed = math.floor(now - State.startTime)
         local hours = math.floor(elapsed / 3600)
         local mins = math.floor((elapsed % 3600) / 60)
@@ -775,14 +824,14 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- DPS Counter (tracks hit markers / kills over time)
+-- DPS Counter
 local dpsCount = 0
 local dpsStartTime = tick()
-local dpsLabel = CreateInfoLabel(HomeTab.Frame, "DPS Status", "0", Color3.fromRGB(255, 165, 0))
+local dpsInfoLabel = CreateInfoLabel(HomeTab.Frame, "DPS Status", "0", Color3.fromRGB(255, 165, 0))
 RunService.RenderStepped:Connect(function()
     local now = tick()
     if now - dpsStartTime >= 1 then
-        local vf = dpsLabel:FindFirstChildWhichIsA("TextLabel")
+        local vf = dpsInfoLabel:FindFirstChildWhichIsA("TextLabel")
         if vf then vf.Text = tostring(dpsCount) end
         dpsCount = 0
         dpsStartTime = now
@@ -830,20 +879,6 @@ CreateSection(AimbotTab.Frame, "No Recoil")
 CreateToggle(AimbotTab.Frame, "No Recoil", false, function(s)
     State.noRecoilEnabled = s
     Logs.Add("No Recoil: " .. tostring(s))
-    if s then
-        -- No Recoil: reduce camera shake after shooting
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then
-            local humanoid = char.Humanoid
-            local origAnimWeight = 1
-            -- Reduce recoil animations weight
-            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
-                if track.Animation.AnimationId:lower():find("recoil") or track.Animation.AnimationId:lower():find("shoot") then
-                    track:AdjustSpeed(0)
-                end
-            end
-        end
-    end
 end)
 
 CreateSection(AimbotTab.Frame, "FOV")
@@ -875,20 +910,6 @@ local function getAlivePlayers()
     return targets
 end
 
-local function getPartInFOV(targetPart, fovRadius)
-    local screenPos, visible = Camera:WorldToViewportPoint(targetPart.Position)
-    if not visible then return nil end
-
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local screenPos2D = Vector2.new(screenPos.X, screenPos.Y)
-    local distance = (screenPos2D - center).Magnitude
-
-    if distance <= fovRadius then
-        return targetPart, distance
-    end
-    return nil
-end
-
 local function findClosestTarget(fovRadius)
     local closest = nil
     local closestDist = math.huge
@@ -912,13 +933,14 @@ local function findClosestTarget(fovRadius)
         local distance = (screenPos2D - center).Magnitude
 
         if distance <= fovRadius and distance < closestDist then
-            -- Check if head is actually visible (raycast)
+            -- Check visibility with raycast
             if State.aimbotHeadOnly then
                 local head = char:FindFirstChild("Head")
                 if head then
-                    local ray = Ray.new(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * (head.Position - Camera.CFrame.Position).Magnitude)
-                    local hit, hitPos = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
-                    if hit and hit == head then
+                    local direction = (head.Position - Camera.CFrame.Position).Unit
+                    local ray = Ray.new(Camera.CFrame.Position, direction * 500)
+                    local hit, hitPos, hitNorm = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
+                    if hit and (hit == head or hit:IsDescendantOf(head.Parent)) then
                         closest = head
                         closestDist = distance
                     end
@@ -933,7 +955,7 @@ local function findClosestTarget(fovRadius)
     return closest, closestDist
 end
 
--- Aimbot Loop (RenderStepped para mira suave)
+-- Aimbot Loop
 RunService.RenderStepped:Connect(function()
     if not State.aimbotEnabled then
         State.aimbotCurrentTarget = nil
@@ -942,7 +964,7 @@ RunService.RenderStepped:Connect(function()
 
     local target = nil
 
-    -- Sticky mode: se tem alvo atual, verifica se ainda ta vivo
+    -- Sticky mode
     if State.aimbotSticky and State.aimbotCurrentTarget and State.aimbotCurrentTarget.Parent then
         local humanoid = State.aimbotCurrentTarget.Parent:FindFirstChildOfClass("Humanoid")
         if humanoid and humanoid.Health > 0 then
@@ -952,7 +974,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Se nao tem alvo sticky, procura novo
     if not target then
         local part = findClosestTarget(State.fovRadius)
         if part then
@@ -964,12 +985,9 @@ RunService.RenderStepped:Connect(function()
     end
 
     if target then
-        -- Verifica hit chance
         if math.random(1, 100) <= State.aimbotHitChance then
             local currentPos = Camera.CFrame.Position
             local targetPos = target.Position
-
-            -- Smooth aiming
             local lerpFactor = 1 / State.aimbotSmoothness
             local newCFrame = CFrame.new(currentPos, targetPos)
             Camera.CFrame = Camera.CFrame:Lerp(newCFrame, lerpFactor)
@@ -977,16 +995,14 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- No Recoil Engine: intercepta animacoes de recoil
+-- No Recoil Engine
 RunService.RenderStepped:Connect(function()
     if not State.noRecoilEnabled then return end
-
     local char = LocalPlayer.Character
     if not char then return end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
 
-    -- Reduz weight de todas animacoes de recoil/shoot
     for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
         local animId = track.Animation.AnimationId:lower()
         if animId:find("recoil") or animId:find("shoot") or animId:find("fire") then
@@ -996,12 +1012,13 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- FOV Circle (renderizado na tela)
+-- FOV Circle
 local fovFrame = Instance.new("Frame")
 fovFrame.Size = UDim2.new(0, 1, 0, 1)
 fovFrame.BackgroundTransparency = 1
 fovFrame.Visible = false
 fovFrame.ZIndex = 5
+fovFrame.Parent = UI.ScreenGui
 
 local fovCircle = Instance.new("Frame")
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1018,8 +1035,6 @@ fovStroke.Color = Theme.Accent
 fovStroke.Thickness = 1
 fovStroke.Parent = fovCircle
 fovStroke.Transparency = 0.5
-
-fovFrame.Parent = UI.ScreenGui
 
 RunService.RenderStepped:Connect(function()
     if State.showFOV and State.aimbotEnabled then
@@ -1060,33 +1075,36 @@ end)
 
 CreateSection(ESPTab.Frame, "Config")
 
-CreateToggle(ESPTab.Frame, "ESP Color Picker", false, function(s)
-    State.espColorPickerOpen = s
-    Logs.Add("Color Picker: " .. tostring(s))
+CreateSlider(ESPTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
+    State.espDistance = v
+    Logs.Add("ESP Distance: " .. tostring(v))
 end)
 
+-- Color Picker
 CreateSection(ESPTab.Frame, "ESP Color Picker")
 
--- Color Picker UI (abre/fecha)
 local colorPickerFrame = Instance.new("Frame")
 colorPickerFrame.Size = UDim2.new(0.9, 0, 0, 0)
 colorPickerFrame.BackgroundColor3 = Theme.Section
 colorPickerFrame.BorderSizePixel = 0
 colorPickerFrame.ClipsDescendants = true
 colorPickerFrame.Parent = ESPTab.Frame
-Instance.new("UICorner").CornerRadius = Theme.CornerRadius.Parent = colorPickerFrame
+local cpCorner = Instance.new("UICorner")
+cpCorner.CornerRadius = Theme.CornerRadius
+cpCorner.Parent = colorPickerFrame
 local cpStroke = Instance.new("UIStroke")
 cpStroke.Color = Theme.Stroke
 cpStroke.Thickness = 1
 cpStroke.Parent = colorPickerFrame
 
--- Color preview area
 local colorPreview = Instance.new("Frame")
 colorPreview.Size = UDim2.new(0.95, 0, 0, 50)
 colorPreview.Position = UDim2.new(0.025, 0, 0, 10)
 colorPreview.BackgroundColor3 = State.espColor
 colorPreview.Parent = colorPickerFrame
-Instance.new("UICorner").CornerRadius = UDim.new(0, 6).Parent = colorPreview
+local cpPrevCorner = Instance.new("UICorner")
+cpPrevCorner.CornerRadius = UDim.new(0, 6)
+cpPrevCorner.Parent = colorPreview
 
 local previewLabel = Instance.new("TextLabel")
 previewLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -1097,7 +1115,6 @@ previewLabel.Font = Theme.FontBold
 previewLabel.TextSize = 14
 previewLabel.Parent = colorPreview
 
--- Preset colors
 local presets = {
     {name = "Branco", color = Color3.fromRGB(255, 255, 255)},
     {name = "Vermelho", color = Color3.fromRGB(255, 0, 0)},
@@ -1132,7 +1149,9 @@ for _, preset in ipairs(presets) do
     presetBtn.Font = Theme.Font
     presetBtn.TextSize = 10
     presetBtn.Parent = colorContainer
-    Instance.new("UICorner").CornerRadius = UDim.new(0, 6).Parent = presetBtn
+    local preCorner = Instance.new("UICorner")
+    preCorner.CornerRadius = UDim.new(0, 6)
+    preCorner.Parent = presetBtn
 
     presetBtn.MouseButton1Click:Connect(function()
         State.espColor = preset.color
@@ -1141,7 +1160,6 @@ for _, preset in ipairs(presets) do
     end)
 end
 
--- Toggle color picker visibility
 CreateToggle(ESPTab.Frame, "Abrir Color Picker", false, function(s)
     if s then
         TweenMgr.Create(colorPickerFrame, {Size = UDim2.new(0.9, 0, 0, 120)})
@@ -1153,46 +1171,29 @@ CreateToggle(ESPTab.Frame, "Abrir Color Picker", false, function(s)
     end
 end)
 
-CreateSlider(ESPTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
-    State.espDistance = v
-    Logs.Add("ESP Distance: " .. tostring(v))
-end)
-
 -- ============================================================
 -- ESP ENGINE (100% funcional - Box com gradiente, Line, Health Bar)
 -- ============================================================
 
--- ScreenGui para ESP
 local espScreenGui = Instance.new("ScreenGui")
-espScreenGui.Name = "ManusHub_ESP_" .. tostring(math.random(1000, 9999))
+espScreenGui.Name = "MikasaHub_ESP_" .. tostring(math.random(1000, 9999))
 espScreenGui.ResetOnSpawn = false
 espScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 espScreenGui.Enabled = true
 
-local ok2, _ = pcall(function()
+local okEsp, _ = pcall(function()
     espScreenGui.Parent = CoreGui
 end)
-if not ok2 then
+if not okEsp then
     espScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- ESP containers por jogador
 local espData = {}
 
 local function AddESP(player)
     if espData[player] then return end
-    espData[player] = {
-        boxFrame = nil,
-        boxGradient = nil,
-        boxStroke = nil,
-        lineFrame = nil,
-        healthBg = nil,
-        healthFill = nil,
-        nameLabel = nil,
-        healthLabel = nil,
-    }
 
-    -- Box Frame (retangular, em pe no boneco)
+    -- Box Frame
     local box = Instance.new("Frame")
     box.Size = UDim2.new(0, 40, 0, 80)
     box.BackgroundTransparency = 1
@@ -1201,7 +1202,7 @@ local function AddESP(player)
     box.ZIndex = 5
     box.Parent = espScreenGui
 
-    -- Box background (preenche com gradiente branco)
+    -- Box background
     local boxBg = Instance.new("Frame")
     boxBg.Size = UDim2.new(1, 0, 1, 0)
     boxBg.BackgroundTransparency = 1
@@ -1209,7 +1210,7 @@ local function AddESP(player)
     boxBg.ZIndex = 6
     boxBg.Parent = box
 
-    -- Top stroke (forte, branco, topo)
+    -- Top stroke (forte, no topo)
     local topStroke = Instance.new("Frame")
     topStroke.Size = UDim2.new(1, 0, 0, 2)
     topStroke.Position = UDim2.new(0, 0, 0, 0)
@@ -1219,7 +1220,7 @@ local function AddESP(player)
     topStroke.ZIndex = 7
     topStroke.Parent = boxBg
 
-    -- Bottom stroke (transparente, desaparecendo pra cima)
+    -- Bottom stroke (gradiente transparente subindo)
     local botStroke = Instance.new("Frame")
     botStroke.Size = UDim2.new(1, 0, 0, 40)
     botStroke.Position = UDim2.new(0, 0, 1, -40)
@@ -1227,20 +1228,19 @@ local function AddESP(player)
     botStroke.ZIndex = 6
     botStroke.Parent = boxBg
 
-    -- Gradiente: forte em baixo -> transparente subindo
     local grad = Instance.new("UIGradient")
     grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),  -- topo = forte
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))   -- base = forte
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     })
     grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),      -- topo: opaco (forte)
-        NumberSequenceKeypoint.new(1, 1)       -- base: transparente
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 1)
     })
     grad.Rotation = 0
     grad.Parent = botStroke
 
-    -- Side lines (left and right)
+    -- Side lines
     local leftLine = Instance.new("Frame")
     leftLine.Size = UDim2.new(0, 1, 1, 0)
     leftLine.Position = UDim2.new(0, 0, 0, 0)
@@ -1259,7 +1259,7 @@ local function AddESP(player)
     rightLine.ZIndex = 7
     rightLine.Parent = boxBg
 
-    -- Line (tracer) - from bottom of screen to player
+    -- Line (tracer)
     local line = Instance.new("Frame")
     line.Size = UDim2.new(0, 2, 0, 0)
     line.Position = UDim2.new(0.5, 0, 1, 0)
@@ -1270,7 +1270,7 @@ local function AddESP(player)
     line.ZIndex = 4
     line.Parent = espScreenGui
 
-    -- Health Bar (vertical, ao lado esquerdo da box)
+    -- Health Bar (vertical, left of box)
     local healthBg = Instance.new("Frame")
     healthBg.Size = UDim2.new(0, 5, 0, 80)
     healthBg.Position = UDim2.new(0, -8, 0, 0)
@@ -1280,17 +1280,14 @@ local function AddESP(player)
     healthBg.ZIndex = 6
     healthBg.Parent = box
 
-    -- Health fill
     local healthFill = Instance.new("Frame")
     healthFill.Size = UDim2.new(1, 0, 1, 0)
     healthFill.Position = UDim2.new(0, 0, 0, 0)
     healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     healthFill.BorderSizePixel = 0
     healthFill.AnchorPoint = Vector2.new(0, 1)
-    healthFill.Size = UDim2.new(1, 0, 1, 0)
     healthFill.Parent = healthBg
 
-    -- Health gradient
     local healthGrad = Instance.new("UIGradient")
     healthGrad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 0)),
@@ -1300,7 +1297,7 @@ local function AddESP(player)
     healthGrad.Rotation = 90
     healthGrad.Parent = healthFill
 
-    -- Name label (above box)
+    -- Name label
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(0, 120, 0, 16)
     nameLabel.Position = UDim2.new(0.5, -60, 0, -18)
@@ -1314,7 +1311,7 @@ local function AddESP(player)
     nameLabel.ZIndex = 7
     nameLabel.Parent = box
 
-    -- Health text label
+    -- Health text
     local healthLabel = Instance.new("TextLabel")
     healthLabel.Size = UDim2.new(0, 100, 0, 14)
     healthLabel.Position = UDim2.new(0.5, -50, 1, 2)
@@ -1356,13 +1353,14 @@ for _, player in ipairs(Players:GetPlayers()) do
     end
 end
 
--- Listen for new players
+-- New players
 Players.PlayerAdded:Connect(function(player)
     task.delay(1, function()
         AddESP(player)
     end)
 end)
 
+-- Leaving players
 Players.PlayerRemoving:Connect(function(player)
     RemoveESP(player)
 end)
@@ -1377,13 +1375,11 @@ RunService.RenderStepped:Connect(function()
         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
         if not humanoid or humanoid.Health <= 0 then continue end
 
-        -- Team check
         if State.espTeamCheck and player.Team == LocalPlayer.Team then continue end
 
         local hrp = player.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then continue end
 
-        -- Distance check
         local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
         if dist > State.espDistance then continue end
 
@@ -1397,14 +1393,11 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
-        local charHeight = humanoid.WalkSpeed > 50 and 6 or 5
-        local boxHeight = screenPos.Y
-        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, charHeight, 0))
-
+        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 5, 0))
         local boxX = screenPos.X
-        local boxY = topVisible and topPos.Y or screenPos.Y
+        local boxY = topVisible and topPos.Y or screenPos.Y - 50
         local boxW = 36 + (50 - math.min(dist / 20, 50))
-        local boxH = (screenPos.Y - (topVisible and topPos.Y or screenPos.Y - 50))
+        local boxH = screenPos.Y - boxY
 
         if boxH < 10 then boxH = 50 end
         if boxW < 20 then boxW = 20 end
@@ -1418,7 +1411,7 @@ RunService.RenderStepped:Connect(function()
             data.boxFrame.Visible = false
         end
 
-        -- BOX COLOR (from color picker)
+        -- BOX COLOR
         if data.boxStroke then
             data.boxStroke.BackgroundColor3 = State.espColor
         end
@@ -1429,26 +1422,26 @@ RunService.RenderStepped:Connect(function()
             })
         end
 
-        -- LINE (tracer from bottom center to box)
+        -- LINE
         if State.espLine and data.lineFrame then
             data.lineFrame.Visible = true
             data.lineFrame.Position = UDim2.new(0, boxX, 1, 0)
-            data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, 0)
             data.lineFrame.BackgroundColor3 = State.espColor
             data.lineFrame.BackgroundTransparency = 0.3
 
-            -- Calculate line height
             local lineEndY = boxY + boxH
             local screenH = Camera.ViewportSize.Y
             local lineH = screenH - lineEndY
             if lineH > 0 then
                 data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, lineH)
+            else
+                data.lineFrame.Size = UDim2.new(0, State.lineThickness, 0, 0)
             end
         else
             data.lineFrame.Visible = false
         end
 
-        -- HEALTH BAR (vertical, left of box)
+        -- HEALTH BAR
         if State.espHealth and data.healthBg and data.healthFill then
             data.healthBg.Size = UDim2.new(0, 5, 0, boxH)
             data.healthBg.Position = UDim2.new(0, -8, 0, 0)
@@ -1456,9 +1449,7 @@ RunService.RenderStepped:Connect(function()
 
             local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
             data.healthFill.Size = UDim2.new(1, 0, hpPercent, 0)
-            data.healthFill.Position = UDim2.new(0, 0, 1, -boxH * hpPercent)
 
-            -- Color based on health
             if hpPercent > 0.5 then
                 data.healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             elseif hpPercent > 0.25 then
@@ -1470,14 +1461,14 @@ RunService.RenderStepped:Connect(function()
             data.healthBg.Visible = false
         end
 
-        -- NAME LABEL
+        -- NAME
         if data.nameLabel then
             data.nameLabel.Text = player.DisplayName
             data.nameLabel.TextColor3 = State.espColor
             data.nameLabel.Visible = State.espBox or State.espLine or State.espHealth
         end
 
-        -- HEALTH LABEL
+        -- HEALTH TEXT
         if data.healthLabel then
             data.healthLabel.Text = tostring(math.floor(humanoid.Health))
             data.healthLabel.Visible = State.espHealth
@@ -1518,7 +1509,6 @@ CreateButton(ConfigTab.Frame, "Carregar Config", function()
 end)
 
 CreateButton(ConfigTab.Frame, "Reset Config", function()
-    -- Reset to defaults
     State.aimbotEnabled = false
     State.aimbotFOV = 150
     State.aimbotSmoothness = 3

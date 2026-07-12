@@ -267,10 +267,35 @@ function UILibrary.new(options)
     logoLabel.TextSize = 18
     logoLabel.Parent = self.Sidebar
     
+    -- Search Bar
+    local searchFrame = Instance.new("Frame")
+    searchFrame.Name = "SearchFrame"
+    searchFrame.Size = UDim2.new(0.9, 0, 0, 30)
+    searchFrame.Position = UDim2.new(0.05, 0, 0, 50)
+    searchFrame.BackgroundColor3 = Theme.Section
+    searchFrame.Parent = self.Sidebar
+    
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 6)
+    searchCorner.Parent = searchFrame
+    
+    local searchInput = Instance.new("TextBox")
+    searchInput.Name = "SearchInput"
+    searchInput.Size = UDim2.new(1, -10, 1, 0)
+    searchInput.Position = UDim2.new(0, 5, 0, 0)
+    searchInput.BackgroundTransparency = 1
+    searchInput.Text = ""
+    searchInput.PlaceholderText = "Search..."
+    searchInput.PlaceholderColor3 = Theme.TextSecondary
+    searchInput.TextColor3 = Theme.TextPrimary
+    searchInput.Font = Theme.Font
+    searchInput.TextSize = 12
+    searchInput.Parent = searchFrame
+
     self.TabContainer = Instance.new("ScrollingFrame")
     self.TabContainer.Name = "TabContainer"
-    self.TabContainer.Size = UDim2.new(1, 0, 1, -60)
-    self.TabContainer.Position = UDim2.new(0, 0, 0, 50)
+    self.TabContainer.Size = UDim2.new(1, 0, 1, -100)
+    self.TabContainer.Position = UDim2.new(0, 0, 0, 90)
     self.TabContainer.BackgroundTransparency = 1
     self.TabContainer.BorderSizePixel = 0
     self.TabContainer.ScrollBarThickness = 0
@@ -366,14 +391,17 @@ end
 
 function UILibrary:ToggleVisibility()
     self.IsVisible = not self.IsVisible
-    self.ScreenGui.Enabled = true -- Habilita antes de animar para aparecer
     
     if self.IsVisible then
-        TweenManager:Create(self.MainFrame, {Position = UDim2.new(0.5, -300, 0.5, -200), BackgroundTransparency = 0}, TweenInfo.new(0.3, Enum.EasingStyle.OutBack, Enum.EasingDirection.Out))
+        self.MainFrame.Visible = true
+        TweenManager:Create(self.MainFrame, {Position = UDim2.new(0.5, -300, 0.5, -200), BackgroundTransparency = 0}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
     else
-        local tween = TweenManager:Create(self.MainFrame, {Position = UDim2.new(0.5, -300, 0.5, -200 + 50), BackgroundTransparency = 1}, TweenInfo.new(0.3, Enum.EasingStyle.InBack, Enum.EasingDirection.In))
-        tween.Completed:Wait()
-        self.ScreenGui.Enabled = false -- Desabilita depois de animar para desaparecer
+        local tween = TweenManager:Create(self.MainFrame, {Position = UDim2.new(0.5, -300, 0.5, -150), BackgroundTransparency = 1}, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+        tween.Completed:Connect(function()
+            if not self.IsVisible then
+                self.MainFrame.Visible = false
+            end
+        end)
     end
 end
 
@@ -410,8 +438,8 @@ function UILibrary:CreateMinimizeButton()
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Size = UDim2.new(0, 20, 0, 20)
     minimizeButton.Position = UDim2.new(1, -50, 0, 5)
-    minimizeButton.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
-    minimizeButton.Text = "_"
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    minimizeButton.Text = "-"
     minimizeButton.TextColor3 = Theme.TextPrimary
     minimizeButton.Font = Theme.FontBold
     minimizeButton.TextSize = 14
@@ -426,10 +454,26 @@ function UILibrary:CreateMinimizeButton()
     stroke.Thickness = 1
     stroke.Parent = minimizeButton
 
+    local minimized = false
+    local originalSize = self.MainFrame.Size
+    
     minimizeButton.MouseButton1Click:Connect(function()
-        TweenManager:Create(self.MainFrame, {Size = UDim2.new(0, 200, 0, 50), Position = UDim2.new(0.5, -100, 1, -60)})
+        minimized = not minimized
+        if minimized then
+            TweenManager:Create(self.MainFrame, {Size = UDim2.new(0, 600, 0, 50)})
+            self.ContentArea.Visible = false
+            self.Sidebar.Visible = false
+            minimizeButton.Text = "+"
+        else
+            TweenManager:Create(self.MainFrame, {Size = originalSize})
+            task.delay(0.3, function()
+                self.ContentArea.Visible = true
+                self.Sidebar.Visible = true
+            end)
+            minimizeButton.Text = "-"
+        end
     end)
-    TweenManager:Hover(minimizeButton, {BackgroundColor3 = Color3.fromRGB(0, 180, 250)}, {BackgroundColor3 = Color3.fromRGB(0, 150, 200)})
+    TweenManager:Hover(minimizeButton, {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}, {BackgroundColor3 = Color3.fromRGB(50, 50, 50)})
 end
 
 function UILibrary:AddTab(name, icon)
@@ -1143,17 +1187,15 @@ local UI = UILibrary.new({
 CreatePlayerInfo(UI.Sidebar)
 CreateFPSCounter(UI.Sidebar)
 
--- Adicionar Abas
-local HomeTab = UI:AddTab("Home", "rbxassetid://4483345998")
-local CombatTab = UI:AddTab("Combat", "rbxassetid://4483345998")
-local FarmTab = UI:AddTab("Farm", "rbxassetid://4483345998")
-local PlayerTab = UI:AddTab("Player", "rbxassetid://4483345998")
-local VisualTab = UI:AddTab("Visual", "rbxassetid://4483345998")
-local InventoryTab = UI:AddTab("Inventory", "rbxassetid://4483345998")
-local TeleportTab = UI:AddTab("Teleports", "rbxassetid://4483345998")
-local SettingsTab = UI:AddTab("Settings", "rbxassetid://4483345998")
-local LogsTab = UI:AddTab("Logs", "rbxassetid://4483345998")
-local MiscTab = UI:AddTab("Misc", "rbxassetid://4483345998")
+-- Adicionar Abas em ordem lógica para PVP
+local HomeTab = UI:AddTab("🏠 Home", "")
+local CombatTab = UI:AddTab("⚔️ Combat", "")
+local PlayerTab = UI:AddTab("👤 Player", "")
+local VisualTab = UI:AddTab("👁️ Visual", "")
+local TeleportTab = UI:AddTab("📍 Teleports", "")
+local MiscTab = UI:AddTab("⭐ Misc", "")
+local SettingsTab = UI:AddTab("⚙️ Settings", "")
+local LogsTab = UI:AddTab("📜 Logs", "")
 
 -- Exemplos na aba Home
 CreateSection(HomeTab.Frame, "Informações do Usuário")
@@ -1166,50 +1208,42 @@ CreateButton(HomeTab.Frame, "Copiar Link Discord", function()
     NotificationSystem.Notify("Sucesso", "Link Discord copiado! (Simulado)", 3)
 end)
 
--- Exemplos na aba Combat
-CreateSection(CombatTab.Frame, "Aimbot")
-CreateToggle(CombatTab.Frame, "Ativar Aimbot", false, function(state)
-    print("Aimbot:", state)
-    NotificationSystem.Notify("Combat", "Aimbot " .. (state and "ativado" or "desativado"), 2)
-end)
-CreateSlider(CombatTab.Frame, "FOV do Aimbot", 0, 360, 90, function(value)
-    print("FOV:", value)
-end)
+-- Aba Combat (Foco em PVP de Tiro)
+CreateSection(CombatTab.Frame, "Main Combat")
+CreateToggle(CombatTab.Frame, "Silent Aim", false, function(state) print("Silent Aim:", state) end)
+CreateToggle(CombatTab.Frame, "Aimbot", false, function(state) print("Aimbot:", state) end)
+CreateSlider(CombatTab.Frame, "Aimbot Smoothness", 1, 10, 5, function(v) print("Smooth:", v) end)
+CreateSlider(CombatTab.Frame, "Aimbot FOV", 0, 600, 100, function(v) print("FOV:", v) end)
+CreateToggle(CombatTab.Frame, "Show FOV Circle", false, function(state) print("Show FOV:", state) end)
 
-CreateSection(CombatTab.Frame, "Kill Aura")
-CreateToggle(CombatTab.Frame, "Ativar Kill Aura", false, function(state)
-    print("Kill Aura:", state)
-end)
-CreateDropdown(CombatTab.Frame, "Modo de Ataque", {"Legit", "Rage", "Silent"}, function(selected)
-    print("Modo selecionado:", selected)
-end)
+CreateSection(CombatTab.Frame, "Weapon Mods")
+CreateToggle(CombatTab.Frame, "No Recoil", false, function(state) print("No Recoil:", state) end)
+CreateToggle(CombatTab.Frame, "No Spread", false, function(state) print("No Spread:", state) end)
+CreateToggle(CombatTab.Frame, "Rapid Fire", false, function(state) print("Rapid Fire:", state) end)
+CreateToggle(CombatTab.Frame, "Infinite Ammo", false, function(state) print("Inf Ammo:", state) end)
 
--- Exemplos na aba Player
-CreateSection(PlayerTab.Frame, "Atributos")
-CreateSlider(PlayerTab.Frame, "WalkSpeed", 16, 200, 16, function(v)
-    -- game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = v -- Requer Character existente
-    print("WalkSpeed:", v)
-end)
-CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v)
-    -- game.Players.LocalPlayer.Character.Humanoid.JumpPower = v -- Requer Character existente
-    print("JumpPower:", v)
-end)
+-- Aba Player
+CreateSection(PlayerTab.Frame, "Movement")
+CreateSlider(PlayerTab.Frame, "WalkSpeed", 16, 250, 16, function(v) print("Speed:", v) end)
+CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v) print("Jump:", v) end)
+CreateToggle(PlayerTab.Frame, "Infinite Jump", false, function(state) print("Inf Jump:", state) end)
+CreateToggle(PlayerTab.Frame, "No Clip", false, function(state) print("No Clip:", state) end)
 
-CreateSection(PlayerTab.Frame, "Atalhos")
-CreateKeybind(PlayerTab.Frame, "Tecla de Voo", Enum.KeyCode.F, function(key)
-    print("Nova tecla de voo:", key.Name)
-    NotificationSystem.Notify("Keybind", "Tecla de Voo definida para: " .. key.Name, 2)
-end)
+CreateSection(PlayerTab.Frame, "Utilities")
+CreateKeybind(PlayerTab.Frame, "Fly Keybind", Enum.KeyCode.F, function(key) print("Fly Key:", key.Name) end)
+CreateButton(PlayerTab.Frame, "Reset Character", function() print("Resetting...") end)
 
--- Exemplos na aba Visual
-CreateSection(VisualTab.Frame, "ESP")
-CreateToggle(VisualTab.Frame, "Ativar ESP", false, function(state)
-    print("ESP:", state)
-end)
-CreateColorPicker(VisualTab.Frame, "Cor do ESP", Color3.fromRGB(255, 45, 45), function(color)
-    print("Nova cor do ESP:", color)
-    NotificationSystem.Notify("Visual", "Cor do ESP alterada!", 2)
-end)
+-- Aba Visual
+CreateSection(VisualTab.Frame, "ESP Settings")
+CreateToggle(VisualTab.Frame, "Enable ESP", false, function(state) print("ESP:", state) end)
+CreateToggle(VisualTab.Frame, "ESP Box", false, function(state) print("ESP Box:", state) end)
+CreateToggle(VisualTab.Frame, "ESP Tracers", false, function(state) print("Tracers:", state) end)
+CreateToggle(VisualTab.Frame, "ESP Names", false, function(state) print("Names:", state) end)
+CreateColorPicker(VisualTab.Frame, "ESP Color", Theme.Accent, function(color) print("ESP Color:", color) end)
+
+CreateSection(VisualTab.Frame, "World")
+CreateSlider(VisualTab.Frame, "Field of View", 70, 120, 70, function(v) print("World FOV:", v) end)
+CreateToggle(VisualTab.Frame, "Full Bright", false, function(state) print("Full Bright:", state) end)
 
 -- Exemplos na aba Settings
 CreateSection(SettingsTab.Frame, "Configurações da UI")
@@ -1226,7 +1260,7 @@ CreateTextBox(SettingsTab.Frame, "Nome de Usuário", "Digite seu nome", function
 end)
 
 -- Notificação Inicial
-NotificationSystem.Notify("MANUS HUB", "Interface carregada com sucesso! Divirta-se.", 5)
+NotificationSystem.Notify("BIEL HUB", "Interface carregada com sucesso! Divirta-se.", 5)
 
     -- Ativar a UI automaticamente no início
     UI.IsVisible = true

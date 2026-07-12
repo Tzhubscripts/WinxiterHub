@@ -1,10 +1,11 @@
 --[[
-    MANUS HUB v2.0 - Roblox UI Library + ESP System
+    MANUS HUB v2.0 - Roblox UI Library + ESP System + Aimbot
 
     Features:
     - Tema Dark Modern com detalhes em vermelho (#ff2d2d)
     - Layout organizado: Logo, Search, Tabs, Player Info, FPS
-    - ESP completo: Box, Tracers, Names, Health Bar, Distance
+    - ESP completo com Highlight, Text e Health Bar
+    - Aimbot funcional integrado no toggle
     - Animacoes fluidas com TweenService
     - Sistema de Notificacoes
     - Save/Load de configuracoes
@@ -18,6 +19,8 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local mouse = LocalPlayer:GetMouse()
 
 -- ===== THEME =====
 local Theme = {
@@ -85,7 +88,7 @@ local notifications = {}
 function NotificationSystem.Notify(title, text, duration)
     duration = duration or 5
 
-    local screenGui = game:GetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or Players.LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
+    local screenGui = game:GetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
 
     local notifyFrame = Instance.new("Frame")
     notifyFrame.Name = "Notification"
@@ -178,24 +181,63 @@ function SettingsSystem.Load()
     return savedSettings
 end
 
--- ===== ESP SYSTEM =====
+-- ===== AIMBOT SYSTEM =====
+local AimbotSystem = {}
+local aimbotActive = false
+local aimbotFOV = 600
+local aimbotSmooth = 5
+
+function AimbotSystem:getClosestPlayer()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+
+    for _, target in pairs(Players:GetPlayers()) do
+        if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (target.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestPlayer = target
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+function AimbotSystem:aimAt(target)
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, target.Character.HumanoidRootPart.Position)
+    end
+end
+
+function AimbotSystem.Enable()
+    if not aimbotActive then
+        aimbotActive = true
+        NotificationSystem.Notify("Combat", "Aimbot ativado!", 2)
+    end
+end
+
+function AimbotSystem.Disable()
+    if aimbotActive then
+        aimbotActive = false
+        NotificationSystem.Notify("Combat", "Aimbot desativado.", 2)
+    end
+end
+
+-- ===== ESP SYSTEM (Based on user script + Health Bar) =====
 local ESPSystem = {}
 local espInstances = {}
 local espConfig = {
     Enabled = false,
-    ShowBox = false,
-    ShowTracers = false,
-    ShowNames = false,
-    ShowHealthBar = false,
-    HealthBarSide = "Left",
-    ESPColor = Theme.Accent,
-    ESPDistance = 1000,
+    TeamCheck = false,
+    PlayerNameType = "DisplayName",
+    ESPDistance = 5000,
 }
 local espConnections = {}
 local espActive = false
 
 local function getOrCreateESPGui()
-    local gui = Players.LocalPlayer.PlayerGui:FindFirstChild("ManusHub_ESP")
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("ManusHub_ESP")
     if not gui then
         gui = Instance.new("ScreenGui")
         gui.Name = "ManusHub_ESP"
@@ -203,7 +245,7 @@ local function getOrCreateESPGui()
         gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         gui.IgnoreGuiInset = true
         gui.Enabled = true
-        gui.Parent = Players.LocalPlayer.PlayerGui
+        gui.Parent = LocalPlayer.PlayerGui
     end
     return gui
 end
@@ -214,7 +256,7 @@ function ESPSystem.Enable()
 
     local espGui = getOrCreateESPGui()
 
-    -- Limpar ESP antigo
+    -- Clean old ESP
     for player, instances in pairs(espInstances) do
         for _, obj in pairs(instances) do
             if obj and obj.Parent then obj:Destroy() end
@@ -222,27 +264,27 @@ function ESPSystem.Enable()
     end
     espInstances = {}
 
-    -- Adicionar jogadores atuais
+    -- Add current players
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= Players.LocalPlayer then
+        if player ~= LocalPlayer then
             ESPSystem:_AddPlayer(player, espGui)
         end
     end
 
-    -- Ouvir novos jogadores
+    -- Listen for new players
     local playerAdded = Players.PlayerAdded:Connect(function(player)
         task.wait(1)
         ESPSystem:_AddPlayer(player, espGui)
     end)
     espConnections["PlayerAdded"] = playerAdded
 
-    -- Ouvir jogadores saindo
+    -- Listen for players leaving
     local playerRemoved = Players.PlayerRemoving:Connect(function(player)
         ESPSystem:_RemovePlayer(player)
     end)
     espConnections["PlayerRemoved"] = playerRemoved
 
-    -- Loop principal do ESP
+    -- Main ESP loop
     local heartbeat = RunService.Heartbeat:Connect(function()
         if not espConfig.Enabled then return end
         for player, instances in pairs(espInstances) do
@@ -253,7 +295,7 @@ function ESPSystem.Enable()
     end)
     espConnections["Heartbeat"] = heartbeat
 
-    NotificationSystem.Notify("ESP", "Sistema ESP ativado com sucesso!", 3)
+    NotificationSystem.Notify("ESP", "ESP com Highlight e Health Bar ativado!", 3)
 end
 
 function ESPSystem.Disable()
@@ -272,77 +314,172 @@ function ESPSystem.Disable()
     end
     espInstances = {}
 
-    NotificationSystem.Notify("ESP", "Sistema ESP desativado.", 3)
+    NotificationSystem.Notify("ESP", "ESP desativado.", 3)
 end
 
 function ESPSystem:_AddPlayer(player, espGui)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        local charAdded = player.CharacterAdded:Once(function(char)
+        player.CharacterAdded:Once(function(char)
             ESPSystem:_AddPlayer(player, espGui)
         end)
         return
     end
 
-    local rootPart = player.Character.HumanoidRootPart
-    local box = Instance.new("Frame")
-    box.Name = "ESPBox"
-    box.BackgroundTransparency = 1
-    box.BorderSizePixel = 0
-    box.Parent = espGui
+    -- Highlight
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_Highlight"
+    highlight.Adornee = player.Character
+    highlight.Archivable = true
+    highlight.Enabled = true
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillColor = player.TeamColor.Color
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0
+    highlight.Parent = player.Character
 
-    local tracer = Instance.new("Frame")
-    tracer.Name = "ESPTracer"
-    tracer.BackgroundTransparency = 0.4
-    tracer.BorderSizePixel = 0
-    tracer.Parent = espGui
+    -- BillboardGui for name and health
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "ESP_Billboard"
+    billboardGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    billboardGui.Active = true
+    billboardGui.AlwaysOnTop = true
+    billboardGui.ExtentsOffset = Vector3.new(0, 3, 0)
+    billboardGui.LightInfluence = 1.0
+    billboardGui.Size = UDim2.new(0, 120, 0, 60)
+    billboardGui.Parent = player.Character:FindFirstChild("HumanoidRootPart")
 
+    -- Name Label
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "ESPName"
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.BorderSizePixel = 0
-    nameLabel.Font = Theme.FontBold
-    nameLabel.TextSize = 13
-    nameLabel.TextStrokeTransparency = 0.5
-    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.Name = "ESP_Name"
+    nameLabel.Parent = billboardGui
+    nameLabel.BackgroundColor3 = player.TeamColor.Color
+    nameLabel.BackgroundTransparency = 0.7
+    nameLabel.Size = UDim2.new(1, 0, 0, 25)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.Font = Enum.Font.SciFi
+    nameLabel.TextColor3 = player.TeamColor.Color
+    nameLabel.TextSize = 14
+    nameLabel.TextWrapped = true
     nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-    nameLabel.Parent = espGui
+    local nameCorner = Instance.new("UICorner")
+    nameCorner.CornerRadius = UDim.new(0, 4)
+    nameCorner.Parent = nameLabel
 
-    local healthBar = Instance.new("Frame")
-    healthBar.Name = "ESPHealthBar"
-    healthBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    healthBar.BorderSizePixel = 0
-    healthBar.ClipsDescendants = true
+    -- Health Bar Frame (background)
+    local healthBarFrame = Instance.new("Frame")
+    healthBarFrame.Name = "ESP_HealthBar"
+    healthBarFrame.Parent = billboardGui
+    healthBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    healthBarFrame.BackgroundTransparency = 0.3
+    healthBarFrame.BorderSizePixel = 0
+    healthBarFrame.Size = UDim2.new(1, 0, 0, 8)
+    healthBarFrame.Position = UDim2.new(0, 0, 0, 30)
     local hbCorner = Instance.new("UICorner")
-    hbCorner.CornerRadius = UDim.new(0, 2)
-    hbCorner.Parent = healthBar
+    hbCorner.CornerRadius = UDim.new(0, 4)
+    hbCorner.Parent = healthBarFrame
 
+    -- Health Bar Fill
     local healthFill = Instance.new("Frame")
     healthFill.Name = "HealthFill"
+    healthFill.Parent = healthBarFrame
     healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     healthFill.BorderSizePixel = 0
-    healthFill.AnchorPoint = Vector2.new(0, 1)
-    healthFill.Position = UDim2.new(0, 0, 1, 0)
     healthFill.Size = UDim2.new(1, 0, 1, 0)
+    healthFill.Position = UDim2.new(0, 0, 0, 0)
     local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(0, 2)
+    fillCorner.CornerRadius = UDim.new(0, 4)
     fillCorner.Parent = healthFill
-    healthFill.Parent = healthBar
-
-    healthBar.Parent = espGui
 
     espInstances[player] = {
-        Box = box,
-        Tracer = tracer,
-        Name = nameLabel,
-        HealthBar = healthBar,
+        Highlight = highlight,
+        BillboardGui = billboardGui,
+        NameLabel = nameLabel,
+        HealthBarFrame = healthBarFrame,
+        HealthFill = healthFill,
         Humanoid = player.Character:FindFirstChildOfClass("Humanoid"),
     }
 
-    -- Ouvir respawn do jogador
+    -- Listen for respawn
     player.CharacterAdded:Once(function(char)
         task.wait(0.5)
         if espInstances[player] then
             espInstances[player].Humanoid = char:FindFirstChildOfClass("Humanoid")
+            -- Re-attach highlight
+            local hl = char:FindFirstChild("ESP_Highlight")
+            if hl then hl:Destroy() end
+            local newHighlight = Instance.new("Highlight")
+            newHighlight.Name = "ESP_Highlight"
+            newHighlight.Adornee = char
+            newHighlight.Archivable = true
+            newHighlight.Enabled = true
+            newHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            newHighlight.FillColor = player.TeamColor.Color
+            newHighlight.FillTransparency = 0.5
+            newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            newHighlight.OutlineTransparency = 0
+            newHighlight.Parent = char
+            espInstances[player].Highlight = newHighlight
+
+            -- Re-attach billboard
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local oldBB = root:FindFirstChild("ESP_Billboard")
+                if oldBB then oldBB:Destroy() end
+                local newBB = Instance.new("BillboardGui")
+                newBB.Name = "ESP_Billboard"
+                newBB.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+                newBB.Active = true
+                newBB.AlwaysOnTop = true
+                newBB.ExtentsOffset = Vector3.new(0, 3, 0)
+                newBB.LightInfluence = 1.0
+                newBB.Size = UDim2.new(0, 120, 0, 60)
+                newBB.Parent = root
+
+                local newNameLabel = Instance.new("TextLabel")
+                newNameLabel.Name = "ESP_Name"
+                newNameLabel.Parent = newBB
+                newNameLabel.BackgroundColor3 = player.TeamColor.Color
+                newNameLabel.BackgroundTransparency = 0.7
+                newNameLabel.Size = UDim2.new(1, 0, 0, 25)
+                newNameLabel.Position = UDim2.new(0, 0, 0, 0)
+                newNameLabel.Font = Enum.Font.SciFi
+                newNameLabel.TextColor3 = player.TeamColor.Color
+                newNameLabel.TextSize = 14
+                newNameLabel.TextWrapped = true
+                newNameLabel.TextXAlignment = Enum.TextXAlignment.Center
+                local nc2 = Instance.new("UICorner")
+                nc2.CornerRadius = UDim.new(0, 4)
+                nc2.Parent = newNameLabel
+
+                local newHealthFrame = Instance.new("Frame")
+                newHealthFrame.Name = "ESP_HealthBar"
+                newHealthFrame.Parent = newBB
+                newHealthFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                newHealthFrame.BackgroundTransparency = 0.3
+                newHealthFrame.BorderSizePixel = 0
+                newHealthFrame.Size = UDim2.new(1, 0, 0, 8)
+                newHealthFrame.Position = UDim2.new(0, 0, 0, 30)
+                local hbc2 = Instance.new("UICorner")
+                hbc2.CornerRadius = UDim.new(0, 4)
+                hbc2.Parent = newHealthFrame
+
+                local newHealthFill = Instance.new("Frame")
+                newHealthFill.Name = "HealthFill"
+                newHealthFill.Parent = newHealthFrame
+                newHealthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                newHealthFill.BorderSizePixel = 0
+                newHealthFill.Size = UDim2.new(1, 0, 1, 0)
+                newHealthFill.Position = UDim2.new(0, 0, 0, 0)
+                local fc2 = Instance.new("UICorner")
+                fc2.CornerRadius = UDim.new(0, 4)
+                fc2.Parent = newHealthFill
+
+                espInstances[player].BillboardGui = newBB
+                espInstances[player].NameLabel = newNameLabel
+                espInstances[player].HealthBarFrame = newHealthFrame
+                espInstances[player].HealthFill = newHealthFill
+            end
         end
     end)
 end
@@ -358,6 +495,8 @@ function ESPSystem:_RemovePlayer(player)
 end
 
 function ESPSystem:_UpdatePlayer(player, instances)
+    if not instances.Highlight or not instances.BillboardGui then return end
+
     local humanoid = instances.Humanoid
     if not humanoid then
         humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -367,105 +506,41 @@ function ESPSystem:_UpdatePlayer(player, instances)
     local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return end
 
-    local localRoot = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then return end
 
-    local distance = (rootPart.Position - localRoot.Position).Magnitude
+    local distance = math.floor((rootPart.Position - localRoot.Position).Magnitude)
+
     if distance > espConfig.ESPDistance then
-        instances.Box.Visible = false
-        instances.Tracer.Visible = false
-        instances.Name.Visible = false
-        instances.HealthBar.Visible = false
+        instances.BillboardGui.Enabled = false
+        instances.Highlight.Enabled = false
         return
     end
 
-    local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-    if not onScreen then
-        instances.Box.Visible = false
-        instances.Tracer.Visible = false
-        instances.Name.Visible = false
-        instances.HealthBar.Visible = false
-        return
-    end
+    instances.BillboardGui.Enabled = true
+    instances.Highlight.Enabled = true
 
-    local boxHeight = math.max(30, 120 - (distance / espConfig.ESPDistance * 80))
-    local boxWidth = boxHeight * 0.55
+    -- Update name
+    local playerName = espConfig.PlayerNameType == "DisplayName" and player.DisplayName or player.Name
+    instances.NameLabel.Text = playerName .. " | Dist: " .. distance
 
-    local color = espConfig.ESPColor
-    local healthPercent = humanoid and humanoid.Health / humanoid.MaxHealth or 1
-
-    -- BOX
-    if espConfig.ShowBox then
-        instances.Box.Visible = true
-        instances.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-        instances.Box.Position = UDim2.new(0, screenPos.X - boxWidth / 2, 0, screenPos.Y - boxHeight / 2)
-
-        local existingStroke = instances.Box:FindFirstChildOfClass("UIStroke")
-        if existingStroke then existingStroke:Destroy() end
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = color
-        stroke.Thickness = 1.5
-        stroke.Parent = instances.Box
-    else
-        instances.Box.Visible = false
-    end
-
-    -- NAME
-    if espConfig.ShowNames then
-        instances.Name.Visible = true
-        instances.Name.Text = player.DisplayName
-        instances.Name.TextColor3 = color
-        instances.Name.Size = UDim2.new(0, 0, 0, 16)
-        instances.Name.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - boxHeight / 2 - 18)
-        instances.Name.AnchorPoint = Vector2.new(0.5, 0)
-    else
-        instances.Name.Visible = false
-    end
-
-    -- HEALTH BAR
-    if espConfig.ShowHealthBar then
-        instances.HealthBar.Visible = true
-        local barHeight = boxHeight + 10
-        local barWidth = 6
-        local barX, barY
-
-        if espConfig.HealthBarSide == "Left" then
-            barX = screenPos.X - boxWidth / 2 - 10
-            barY = screenPos.Y - boxHeight / 2 - 2
-        else
-            barX = screenPos.X + boxWidth / 2 + 4
-            barY = screenPos.Y - boxHeight / 2 - 2
+    -- Update health bar
+    if humanoid then
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        local healthColor = Color3.fromRGB(0, 255, 0)
+        if healthPercent <= 0.25 then
+            healthColor = Color3.fromRGB(255, 0, 0)
+        elseif healthPercent <= 0.5 then
+            healthColor = Color3.fromRGB(255, 165, 0)
         end
-
-        instances.HealthBar.Size = UDim2.new(0, barWidth, 0, barHeight)
-        instances.HealthBar.Position = UDim2.new(0, barX, 0, barY)
-
-        local fill = instances.HealthBar:FindFirstChild("HealthFill")
-        if fill then
-            local healthColor = Color3.fromRGB(0, 255, 0)
-            if healthPercent <= 0.25 then
-                healthColor = Color3.fromRGB(255, 0, 0)
-            elseif healthPercent <= 0.5 then
-                healthColor = Color3.fromRGB(255, 165, 0)
-            end
-            fill.BackgroundColor3 = healthColor
-            fill.Size = UDim2.new(1, 0, healthPercent, 0)
-            fill.Position = UDim2.new(0, 0, 1 - healthPercent, 0)
-        end
-    else
-        instances.HealthBar.Visible = false
+        instances.HealthFill.BackgroundColor3 = healthColor
+        instances.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
     end
 
-    -- TRACERS
-    if espConfig.ShowTracers then
-        instances.Tracer.Visible = true
-        instances.Tracer.BackgroundColor3 = color
-        instances.Tracer.BackgroundTransparency = 0.5
-        instances.Tracer.Size = UDim2.new(0, 2, 0, math.max(5, (screenPos.Y - Camera.ViewportSize.Y * 0.5)))
-        instances.Tracer.Position = UDim2.new(0, screenPos.X - 1, 0, math.min(screenPos.Y, Camera.ViewportSize.Y * 0.5))
-    else
-        instances.Tracer.Visible = false
-    end
+    -- Update highlight colors based on team
+    instances.Highlight.FillColor = player.TeamColor.Color
+    instances.NameLabel.BackgroundColor3 = player.TeamColor.Color
+    instances.NameLabel.TextColor3 = player.TeamColor.Color
 end
 
 -- ===== FOV CIRCLE =====
@@ -473,7 +548,6 @@ local FOVCircle = {}
 local fovCircleInstance = nil
 local fovCircleVisible = false
 local fovCircleRadius = 100
-local fovCircleColor = Theme.Accent
 
 function FOVCircle.Enable()
     if fovCircleVisible then return end
@@ -495,7 +569,7 @@ function FOVCircle.Enable()
     uiCorner.Parent = fovCircleInstance
 
     local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = fovCircleColor
+    uiStroke.Color = Theme.Accent
     uiStroke.Thickness = 1.5
     uiStroke.Transparency = 0.4
     uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -1041,7 +1115,7 @@ function UILibrary.new(options)
         self.ScreenGui.Parent = CoreGui
     end)
     if not success then
-        self.ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+        self.ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     end
 
     -- Main Frame
@@ -1159,7 +1233,7 @@ function UILibrary.new(options)
     piCorner.CornerRadius = Theme.CornerRadius
     piCorner.Parent = self.PlayerInfoFrame
 
-    local piPlayer = Players.LocalPlayer
+    local piPlayer = LocalPlayer
     local avatarImg = Instance.new("ImageLabel")
     avatarImg.Size = UDim2.new(0, 40, 0, 40)
     avatarImg.Position = UDim2.new(0, 10, 0, 12)
@@ -1459,10 +1533,10 @@ end
 -- ===== MAIN EXECUTION =====
 local UI = UILibrary.new({
     Title = "MANUS HUB",
-    SubTitle = "v2.0 | Premium UI + ESP"
+    SubTitle = "v2.0 | Premium UI + ESP + Aimbot"
 })
 
--- Tabs organized: Visual first, then Combat, Player, Teleports, Misc, Settings, Logs
+-- Tabs organized
 local VisualTab = UI:AddTab("Visual")
 local CombatTab = UI:AddTab("Combat")
 local PlayerTab = UI:AddTab("Player")
@@ -1471,7 +1545,7 @@ local MiscTab = UI:AddTab("Misc")
 local SettingsTab = UI:AddTab("Settings")
 local LogsTab = UI:AddTab("Logs")
 
--- TAB: VISUAL (ESP)
+-- ===== TAB: VISUAL (ESP) =====
 CreateSection(VisualTab.Frame, "ESP Controls")
 
 CreateToggle(VisualTab.Frame, "Enable ESP", false, function(state)
@@ -1483,39 +1557,18 @@ CreateToggle(VisualTab.Frame, "Enable ESP", false, function(state)
     end
 end)
 
-CreateToggle(VisualTab.Frame, "ESP Box", false, function(state)
-    espConfig.ShowBox = state
+CreateToggle(VisualTab.Frame, "Team Check", false, function(state)
+    espConfig.TeamCheck = state
 end)
 
-CreateToggle(VisualTab.Frame, "ESP Names", false, function(state)
-    espConfig.ShowNames = state
-end)
-
-CreateToggle(VisualTab.Frame, "ESP Tracers", false, function(state)
-    espConfig.ShowTracers = state
-end)
-
-CreateToggle(VisualTab.Frame, "ESP Health Bar", false, function(state)
-    espConfig.ShowHealthBar = state
-    if state then
-        NotificationSystem.Notify("ESP", "Barra de vida ativada!", 2)
-    else
-        NotificationSystem.Notify("ESP", "Barra de vida desativada.", 2)
-    end
-end)
-
-CreateColorPicker(VisualTab.Frame, "ESP Color", Theme.Accent, function(color)
-    espConfig.ESPColor = color
+CreateDropdown(VisualTab.Frame, "Name Type", {"DisplayName", "Name"}, function(s)
+    espConfig.PlayerNameType = s
 end)
 
 CreateSection(VisualTab.Frame, "ESP Customization")
 
-CreateSlider(VisualTab.Frame, "ESP Distance", 100, 5000, 1000, function(v)
+CreateSlider(VisualTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
     espConfig.ESPDistance = v
-end)
-
-CreateDropdown(VisualTab.Frame, "Health Bar Side", {"Left", "Right"}, function(s)
-    espConfig.HealthBarSide = s
 end)
 
 CreateSection(VisualTab.Frame, "FOV Circle")
@@ -1551,23 +1604,23 @@ CreateToggle(VisualTab.Frame, "Full Bright", false, function(state)
     end
 end)
 
--- TAB: COMBAT
+-- ===== TAB: COMBAT (AIMBOT INTEGRATED) =====
 CreateSection(CombatTab.Frame, "Main Combat")
 
-CreateToggle(CombatTab.Frame, "Silent Aim", false, function(state)
-    print("Silent Aim:", state)
+CreateToggle(CombatTab.Frame, "Aimbot", false, function(state)
+    if state then
+        AimbotSystem.Enable()
+    else
+        AimbotSystem.Disable()
+    end
 end)
 
-CreateToggle(CombatTab.Frame, "Aimbot", false, function(state)
-    print("Aimbot:", state)
+CreateSlider(CombatTab.Frame, "Aimbot FOV", 0, 600, 600, function(v)
+    aimbotFOV = v
 end)
 
 CreateSlider(CombatTab.Frame, "Aimbot Smoothness", 1, 10, 5, function(v)
-    print("Smooth:", v)
-end)
-
-CreateSlider(CombatTab.Frame, "Aimbot FOV", 0, 600, 100, function(v)
-    print("FOV:", v)
+    aimbotSmooth = v
 end)
 
 CreateSection(CombatTab.Frame, "Weapon Mods")
@@ -1588,18 +1641,18 @@ CreateToggle(CombatTab.Frame, "Infinite Ammo", false, function(state)
     print("Inf Ammo:", state)
 end)
 
--- TAB: PLAYER
+-- ===== TAB: PLAYER =====
 CreateSection(PlayerTab.Frame, "Movement")
 
 CreateSlider(PlayerTab.Frame, "WalkSpeed", 16, 250, 16, function(v)
-    local char = Players.LocalPlayer.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.WalkSpeed = v
     end
 end)
 
 CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v)
-    local char = Players.LocalPlayer.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.JumpPower = v
     end
@@ -1607,7 +1660,7 @@ end)
 
 CreateToggle(PlayerTab.Frame, "Infinite Jump", false, function(state)
     if state then
-        local char = Players.LocalPlayer.Character
+        local char = LocalPlayer.Character
         if char and char:FindFirstChildOfClass("Humanoid") then
             char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end
@@ -1625,18 +1678,18 @@ CreateKeybind(PlayerTab.Frame, "Fly Keybind", Enum.KeyCode.F, function(key)
 end)
 
 CreateButton(PlayerTab.Frame, "Reset Character", function()
-    local char = Players.LocalPlayer.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") then
         char.Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
     end
     NotificationSystem.Notify("Player", "Personagem resetado!", 2)
 end)
 
--- TAB: TELEPORTS
+-- ===== TAB: TELEPORTS =====
 CreateSection(TeleportTab.Frame, "Teleports")
 
 CreateButton(TeleportTab.Frame, "Teleport to Map Center", function()
-    local char = Players.LocalPlayer.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         char.HumanoidRootPart.CFrame = CFrame.new(0, 50, 0)
     end
@@ -1646,8 +1699,8 @@ end)
 CreateButton(TeleportTab.Frame, "Teleport to Random Player", function()
     local players = Players:GetPlayers()
     for _, p in ipairs(players) do
-        if p ~= Players.LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local char = Players.LocalPlayer.Character
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local char = LocalPlayer.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 char.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
                 NotificationSystem.Notify("Teleport", "Teleportado para " .. p.DisplayName, 2)
@@ -1657,7 +1710,7 @@ CreateButton(TeleportTab.Frame, "Teleport to Random Player", function()
     end
 end)
 
--- TAB: MISC
+-- ===== TAB: MISC =====
 CreateSection(MiscTab.Frame, "Miscellaneous")
 
 CreateToggle(MiscTab.Frame, "Anti-AFK", false, function(state)
@@ -1668,11 +1721,11 @@ CreateButton(MiscTab.Frame, "Copy Discord Link", function()
     NotificationSystem.Notify("Sucesso", "Link do Discord copiado!", 3)
 end)
 
--- TAB: SETTINGS
+-- ===== TAB: SETTINGS =====
 CreateSection(SettingsTab.Frame, "Configuracoes da UI")
 
 CreateButton(SettingsTab.Frame, "Salvar Configuracoes", function()
-    SettingsSystem.Save({espEnabled = espConfig.Enabled, espColor = espConfig.ESPColor})
+    SettingsSystem.Save({espEnabled = espConfig.Enabled, aimbotEnabled = aimbotActive})
     NotificationSystem.Notify("Settings", "Configuracoes salvas com sucesso!", 3)
 end)
 
@@ -1684,7 +1737,7 @@ CreateTextBox(SettingsTab.Frame, "Nome de Usuario", "Digite seu nome", function(
     print("Nome digitado:", text)
 end)
 
--- TAB: LOGS
+-- ===== TAB: LOGS =====
 CreateSection(LogsTab.Frame, "System Logs")
 
 local logContainer = Instance.new("Frame")
@@ -1725,10 +1778,21 @@ local function addLog(text, color)
 end
 
 addLog("MANUS HUB v2.0 inicializado", Theme.Accent)
-addLog("ESP System loaded", Color3.fromRGB(0, 255, 100))
+addLog("ESP System + Health Bar loaded", Color3.fromRGB(0, 255, 100))
+addLog("Aimbot System loaded", Color3.fromRGB(0, 255, 100))
 addLog("UI Library ready", Color3.fromRGB(0, 255, 100))
 
--- STARTUP ANIMATION
+-- ===== AIMBOT LOOP (RunService) =====
+RunService.RenderStepped:Connect(function()
+    if aimbotActive then
+        local closestPlayer = AimbotSystem:getClosestPlayer()
+        if closestPlayer then
+            AimbotSystem:aimAt(closestPlayer)
+        end
+    end
+end)
+
+-- ===== STARTUP ANIMATION =====
 UI.IsVisible = true
 UI.MainFrame.BackgroundTransparency = 1
 UI.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -150)
@@ -1738,6 +1802,6 @@ TweenManager:Create(UI.MainFrame, {
     BackgroundTransparency = 0
 }, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
 
-NotificationSystem.Notify("MANUS HUB", "Interface v2.0 carregada! ESP + Visual caprichado.", 5)
+NotificationSystem.Notify("MANUS HUB", "Interface v2.0 carregada! ESP + Aimbot caprichado.", 5)
 
 return UI

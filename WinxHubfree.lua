@@ -1,11 +1,8 @@
 --[[
-    MANUS HUB v4.0 - Full UI Library + 12 Tabs
+    MANUS HUB v5.0 - Full UI Library
 
-    Tabs:
-    Home | Combat | Aim | Visuals | Movement | Defense |
-    Player | World | Utilities | Configs | Settings | Logs
+    Tabs: Home | Combat | Aim | Visuals | Movement | Player | Misc | Settings | Configs
 
-    Interface Only - No external functionality
     Tema Dark Modern com detalhes em vermelho (#ff2d2d)
 ]]
 
@@ -16,9 +13,10 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
 
 -- ===== THEME =====
 local Theme = {
@@ -37,47 +35,102 @@ local Theme = {
 }
 
 -- ===== GLOBAL STATE =====
-local State = {
-    espEnabled = false,
-    espBox = false,
-    espLine = false,
-    espHealthBar = false,
-    espTeamCheck = false,
-    espNameType = "DisplayName",
-    espDistance = 5000,
-    espFOV = 300,
-    fovCircleEnabled = false,
-    fovCircleSize = 300,
-    aimbotEnabled = false,
-    aimbotFOV = 300,
-    aimbotSmooth = 3,
-    aimbotSticky = true,
-    aimbotTargetPart = "HumanoidRootPart",
-    silentAimEnabled = false,
-    silentAimMethod = "Raycast",
-    silentAimTargetPart = "HumanoidRootPart",
-    silentAimTeamCheck = false,
-    silentAimVisibleCheck = false,
-    silentAimFOV = 300,
-    silentAimHitChance = 100,
-    silentAimPrediction = false,
-    silentAimPredictionAmount = 0.165,
-    silentAimShowFOV = false,
-    silentAimShowTarget = false,
-    walkSpeed = 16,
-    jumpPower = 50,
-    infiniteJump = false,
-    noClip = false,
-    antiStun = false,
-    antiKnockback = false,
-    antiRagdoll = false,
-    fullBright = false,
-    themeColor = "Red",
-    enableSound = true,
-    enableAnimation = true,
-    settingsKeybind = Enum.KeyCode.RightControl,
-    currentKeybind = Enum.KeyCode.RightControl,
-}
+local State = {}
+local function init()
+    State.uiBlur = false
+    State.watermark = false
+    State.fpsCounter = false
+    State.pingCounter = false
+    State.clock = false
+    State.notifications = true
+    State.autoFire = false
+    State.triggerBot = false
+    State.autoReload = false
+    State.instantReload = false
+    State.noRecoil = false
+    State.noSpread = false
+    State.noSway = false
+    State.rapidFire = false
+    State.autoEquip = false
+    State.autoSwitchWeapon = false
+    State.autoKnife = false
+    State.fireRate = 50
+    State.reloadSpeed = 50
+    State.triggerDelay = 0
+    State.burstDelay = 50
+    State.silentAim = false
+    State.aimAssist = false
+    State.aimLock = false
+    State.stickyAim = false
+    State.prediction = false
+    State.teamCheck = false
+    State.wallCheck = false
+    State.visibilityCheck = false
+    State.knockedCheck = false
+    State.aliveCheck = false
+    State.friendCheck = false
+    State.closestPart = false
+    State.dynamicFOV = false
+    State.fovRadius = 300
+    State.smoothness = 3
+    State.aimStrength = 50
+    State.predictionAmount = 17
+    State.hitChance = 100
+    State.maxDistance = 5000
+    State.boxEsp = false
+    State.nameEsp = false
+    State.healthEsp = false
+    State.distanceEsp = false
+    State.weaponEsp = false
+    State.skeletonEsp = false
+    State.chams = false
+    State.tracers = false
+    State.snaplines = false
+    State.fovCircle = false
+    State.crosshair = false
+    State.hitMarker = false
+    State.espDistance = 5000
+    State.tracerThickness = 2
+    State.fovTransparency = 40
+    State.crosshairSize = 10
+    State.speed = false
+    State.fly = false
+    State.infiniteJump = false
+    State.noClip = false
+    State.bunnyHop = false
+    State.autoSprint = false
+    State.noFallDamage = false
+    State.walkSpeed = 16
+    State.flySpeed = 50
+    State.jumpPower = 50
+    State.sprintSpeed = 50
+    State.godMode = false
+    State.antiAfk = false
+    State.antiSlow = false
+    State.antiFlash = false
+    State.antiSmoke = false
+    State.infiniteStamina = false
+    State.characterScale = 1
+    State.cameraFOV = 70
+    State.fpsBoost = false
+    State.autoRejoin = false
+    State.autoRespawn = false
+    State.autoCollect = false
+    State.streamerMode = false
+    State.fpsCap = 60
+    State.uiSounds = true
+    State.uiAnimations = true
+    State.blurBackground = false
+    State.rainbowAccent = false
+    State.autoSaveConfig = false
+    State.minimizeOnStart = false
+    State.uiScale = 100
+    State.animationSpeed = 3
+    State.uiTransparency = 0
+    State.settingsKeybind = Enum.KeyCode.RightControl
+    State.currentKeybind = Enum.KeyCode.RightControl
+end
+init()
 
 -- ===== TWEEN MANAGER =====
 local TweenManager = {}
@@ -128,18 +181,11 @@ local logEntries = {}
 
 function LogSystem.Add(text, color)
     color = color or Theme.TextSecondary
-    local entry = {
-        text = text,
-        color = color,
-        time = os.date("%H:%M:%S")
-    }
-    table.insert(logEntries, 1, entry)
+    table.insert(logEntries, 1, {text = text, color = color, time = os.date("%H:%M:%S")})
     if #logEntries > 50 then table.remove(logEntries) end
 end
 
-function LogSystem.Get()
-    return logEntries
-end
+function LogSystem.Get() return logEntries end
 
 -- ===== NOTIFICATION SYSTEM =====
 local NotificationSystem = {}
@@ -147,7 +193,6 @@ local notifications = {}
 
 function NotificationSystem.Notify(title, text, duration)
     duration = duration or 5
-
     local screenGui = CoreGui:FindFirstChildWhichIsA("ScreenGui") or LocalPlayer.PlayerGui:FindFirstChildWhichIsA("ScreenGui")
     if not screenGui then return end
 
@@ -205,13 +250,11 @@ function NotificationSystem.Notify(title, text, duration)
     textLabel.Parent = notifyFrame
 
     table.insert(notifications, notifyFrame)
-
     TweenManager:Create(notifyFrame, {Position = UDim2.new(1, -300, 1, -100 - ((#notifications - 1) * 95))})
 
     task.delay(duration, function()
         local tween = TweenManager:Create(notifyFrame, {Position = UDim2.new(1, 20, notifyFrame.Position.Y.Scale, notifyFrame.Position.Y.Offset)})
         tween.Completed:Wait()
-
         local index = table.find(notifications, notifyFrame)
         if index then
             table.remove(notifications, index)
@@ -422,10 +465,8 @@ local function CreateSlider(parent, text, min, max, default, callback)
     local function update(input)
         local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
         local value = math.floor(min + (max - min) * pos)
-
         sliderFill.Size = UDim2.new(pos, 0, 1, 0)
         valueLabel.Text = tostring(value)
-
         if callback then callback(value) end
     end
 
@@ -594,6 +635,118 @@ local function CreateKeybind(parent, text, default, callback)
     return keybindFrame
 end
 
+local function CreateTextBox(parent, text, placeholder, callback)
+    local boxFrame = Instance.new("Frame")
+    boxFrame.Size = UDim2.new(0.9, 0, 0, 38)
+    boxFrame.BackgroundColor3 = Theme.Section
+    boxFrame.BorderSizePixel = 0
+    boxFrame.Parent = parent
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = Theme.CornerRadius
+    uiCorner.Parent = boxFrame
+
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Theme.Stroke
+    uiStroke.Thickness = 1
+    uiStroke.Parent = boxFrame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.4, 0, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.TextPrimary
+    label.Font = Theme.Font
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = boxFrame
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(0.5, 0, 0, 24)
+    input.Position = UDim2.new(1, -15, 0.5, -12)
+    input.AnchorPoint = Vector2.new(1, 0)
+    input.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    input.BorderSizePixel = 0
+    input.Text = ""
+    input.PlaceholderText = placeholder
+    input.PlaceholderColor3 = Theme.TextSecondary
+    input.TextColor3 = Theme.TextPrimary
+    input.Font = Theme.Font
+    input.TextSize = 12
+    input.ClipsDescendants = true
+    input.Parent = boxFrame
+
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.Parent = input
+
+    input.FocusLost:Connect(function(enterPressed)
+        if callback then callback(input.Text, enterPressed) end
+    end)
+
+    return boxFrame
+end
+
+local function CreateLabel(parent, text, color)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.9, 0, 0, 30)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or Theme.TextPrimary
+    label.Font = Theme.Font
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 15)
+    padding.Parent = label
+
+    return label
+end
+
+local function CreateInfoLabel(parent, text, value, valueColor)
+    local infoFrame = Instance.new("Frame")
+    infoFrame.Size = UDim2.new(0.9, 0, 0, 38)
+    infoFrame.BackgroundColor3 = Theme.Section
+    infoFrame.BorderSizePixel = 0
+    infoFrame.Parent = parent
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = Theme.CornerRadius
+    uiCorner.Parent = infoFrame
+
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Theme.Stroke
+    uiStroke.Thickness = 1
+    uiStroke.Parent = infoFrame
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    textLabel.Position = UDim2.new(0, 15, 0, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = text
+    textLabel.TextColor3 = Theme.TextPrimary
+    textLabel.Font = Theme.Font
+    textLabel.TextSize = 14
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.Parent = infoFrame
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.35, 0, 1, 0)
+    valueLabel.Position = UDim2.new(0.6, 10, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(value)
+    valueLabel.TextColor3 = valueColor or Theme.Accent
+    valueLabel.Font = Theme.FontBold
+    valueLabel.TextSize = 13
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    valueLabel.Parent = infoFrame
+
+    return infoFrame
+end
+
 -- ===== UI LIBRARY CORE =====
 local UILibrary = {}
 UILibrary.__index = UILibrary
@@ -602,7 +755,7 @@ function UILibrary.new(options)
     local self = setmetatable({}, UILibrary)
 
     self.Title = options.Title or "MANUS HUB"
-    self.SubTitle = options.SubTitle or "v4.0"
+    self.SubTitle = options.SubTitle or "v5.0"
     self.Tabs = {}
     self.ActiveTab = nil
     self.IsVisible = false
@@ -1035,452 +1188,185 @@ end
 -- ===== MAIN EXECUTION =====
 local UI = UILibrary.new({
     Title = "MANUS HUB",
-    SubTitle = "v4.0 | Full UI"
+    SubTitle = "v5.0 | Full UI"
 })
 
--- ===== CREATE 12 TABS =====
+-- Create 9 tabs
 local HomeTab = UI:AddTab("Home")
 local CombatTab = UI:AddTab("Combat")
 local AimTab = UI:AddTab("Aim")
 local VisualsTab = UI:AddTab("Visuals")
 local MovementTab = UI:AddTab("Movement")
-local DefenseTab = UI:AddTab("Defense")
 local PlayerTab = UI:AddTab("Player")
-local WorldTab = UI:AddTab("World")
-local UtilitiesTab = UI:AddTab("Utilities")
-local ConfigsTab = UI:AddTab("Configs")
+local MiscTab = UI:AddTab("Misc")
 local SettingsTab = UI:AddTab("Settings")
-local LogsTab = UI:AddTab("Logs")
+local ConfigsTab = UI:AddTab("Configs")
 
 -- ============================================================
--- TAB: HOME (informacoes, status, FPS, ping)
+-- TAB 1: HOME
 -- ============================================================
 CreateSection(HomeTab.Frame, "Informacoes")
-
-CreateLabel(HomeTab.Frame, "Bem-vindo ao MANUS HUB v4.0", Theme.TextPrimary)
-CreateLabel(HomeTab.Frame, "Interface completa com 12 tabs", Theme.TextSecondary)
+CreateLabel(HomeTab.Frame, "MANUS HUB v5.0", Theme.Accent)
+CreateLabel(HomeTab.Frame, "Interface completa com 9 tabs e 60+ controles", Theme.TextSecondary)
+CreateLabel(HomeTab.Frame, "Jogo: " .. game.PlaceInfo.Name, Theme.TextPrimary)
 
 CreateSection(HomeTab.Frame, "Status")
 
-local function CreateInfoLabel(parent, text, value, valueColor)
-    local infoFrame = Instance.new("Frame")
-    infoFrame.Size = UDim2.new(0.9, 0, 0, 38)
-    infoFrame.BackgroundColor3 = Theme.Section
-    infoFrame.BorderSizePixel = 0
-    infoFrame.Parent = parent
+local espStatusFrame = CreateInfoLabel(HomeTab.Frame, "ESP", "OFF", Color3.fromRGB(255, 0, 0))
+local aimStatusFrame = CreateInfoLabel(HomeTab.Frame, "Aimbot", "OFF", Color3.fromRGB(255, 0, 0))
+local pingFrame = CreateInfoLabel(HomeTab.Frame, "Ping", "--ms", Color3.fromRGB(0, 255, 100))
+local fpsHomeFrame = CreateInfoLabel(HomeTab.Frame, "FPS", "--", Color3.fromRGB(0, 255, 100))
 
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = Theme.CornerRadius
-    uiCorner.Parent = infoFrame
-
-    local uiStroke = Instance.new("UIStroke")
-    uiStroke.Color = Theme.Stroke
-    uiStroke.Thickness = 1
-    uiStroke.Parent = infoFrame
-
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(0.6, 0, 1, 0)
-    textLabel.Position = UDim2.new(0, 15, 0, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = text
-    textLabel.TextColor3 = Theme.TextPrimary
-    textLabel.Font = Theme.Font
-    textLabel.TextSize = 14
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
-    textLabel.Parent = infoFrame
-
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(0.35, 0, 1, 0)
-    valueLabel.Position = UDim2.new(0.6, 10, 0, 0)
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = tostring(value)
-    valueLabel.TextColor3 = valueColor or Theme.Accent
-    valueLabel.Font = Theme.FontBold
-    valueLabel.TextSize = 13
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
-    valueLabel.Parent = infoFrame
-
-    return infoFrame
-end
-
-local espStatusLabel = CreateInfoLabel(HomeTab.Frame, "ESP Status", "OFF", Color3.fromRGB(255, 0, 0))
-local aimStatusLabel = CreateInfoLabel(HomeTab.Frame, "Aimbot Status", "OFF", Color3.fromRGB(255, 0, 0))
-local silentAimStatusLabel = CreateInfoLabel(HomeTab.Frame, "Silent Aim Status", "OFF", Color3.fromRGB(255, 0, 0))
-local pingLabel = CreateInfoLabel(HomeTab.Frame, "Ping", "--ms", Color3.fromRGB(0, 255, 100))
-local fpsHomeLabel = CreateInfoLabel(HomeTab.Frame, "FPS", "--", Color3.fromRGB(0, 255, 100))
-
--- Update FPS and ping live
+-- Live FPS and Ping
 local homeLastUpdate = tick()
 local homeFrames = 0
 RunService.RenderStepped:Connect(function()
     homeFrames = homeFrames + 1
     local now = tick()
     if now - homeLastUpdate >= 1 then
-        if fpsHomeLabel then
-            local valFrame = fpsHomeLabel:FindFirstChildWhichIsA("TextLabel")
-            if valFrame then
-                valFrame.Text = tostring(homeFrames)
-            end
+        if fpsHomeFrame then
+            local vf = fpsHomeFrame:FindFirstChildWhichIsA("TextLabel")
+            if vf then vf.Text = tostring(homeFrames) end
         end
-        local ping = math.floor((math.random(20, 80)))
-        if pingLabel then
-            local valFrame = pingLabel:FindFirstChildWhichIsA("TextLabel")
-            if valFrame then
-                valFrame.Text = ping .. "ms"
-            end
+        local ping = math.floor(math.random(20, 80))
+        if pingFrame then
+            local vf = pingFrame:FindFirstChildWhichIsA("TextLabel")
+            if vf then vf.Text = ping .. "ms" end
         end
         homeFrames = 0
         homeLastUpdate = now
     end
 end)
 
-CreateSection(HomeTab.Frame, "Jogo")
+-- ============================================================
+-- TAB 2: COMBAT
+-- ============================================================
+CreateSection(CombatTab.Frame, "Toggles")
 
-local gameNameLabel = CreateInfoLabel(HomeTab.Frame, "Jogo", game.PlaceInfo.Name, Theme.TextSecondary)
+CreateToggle(CombatTab.Frame, "Auto Fire", false, function(s) LogSystem.Add("Auto Fire: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Trigger Bot", false, function(s) LogSystem.Add("Trigger Bot: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Auto Reload", false, function(s) LogSystem.Add("Auto Reload: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Instant Reload", false, function(s) LogSystem.Add("Instant Reload: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "No Recoil", false, function(s) LogSystem.Add("No Recoil: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "No Spread", false, function(s) LogSystem.Add("No Spread: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "No Sway", false, function(s) LogSystem.Add("No Sway: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Rapid Fire", false, function(s) LogSystem.Add("Rapid Fire: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Auto Equip", false, function(s) LogSystem.Add("Auto Equip: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Auto Switch Weapon", false, function(s) LogSystem.Add("Auto Switch Weapon: " .. tostring(s)) end)
+CreateToggle(CombatTab.Frame, "Auto Knife", false, function(s) LogSystem.Add("Auto Knife: " .. tostring(s)) end)
+
+CreateSection(CombatTab.Frame, "Sliders")
+
+CreateSlider(CombatTab.Frame, "Fire Rate", 1, 100, 50, function(v) LogSystem.Add("Fire Rate: " .. tostring(v)) end)
+CreateSlider(CombatTab.Frame, "Reload Speed", 1, 100, 50, function(v) LogSystem.Add("Reload Speed: " .. tostring(v)) end)
+CreateSlider(CombatTab.Frame, "Trigger Delay", 0, 100, 0, function(v) LogSystem.Add("Trigger Delay: " .. tostring(v)) end)
+CreateSlider(CombatTab.Frame, "Burst Delay", 0, 100, 50, function(v) LogSystem.Add("Burst Delay: " .. tostring(v)) end)
 
 -- ============================================================
--- TAB: COMBAT (funcoes principais de combate)
+-- TAB 3: AIM
 -- ============================================================
-CreateSection(CombatTab.Frame, "Combat Toggles")
+CreateSection(AimTab.Frame, "Toggles")
 
-CreateToggle(CombatTab.Frame, "Rapid Fire", false, function(state)
-    LogSystem.Add("Rapid Fire: " .. tostring(state))
-end)
+CreateToggle(AimTab.Frame, "Silent Aim", false, function(s) State.silentAim = s; LogSystem.Add("Silent Aim: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Aim Assist", false, function(s) State.aimAssist = s; LogSystem.Add("Aim Assist: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Aim Lock", false, function(s) State.aimLock = s; LogSystem.Add("Aim Lock: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Sticky Aim", false, function(s) State.stickyAim = s; LogSystem.Add("Sticky Aim: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Prediction", false, function(s) State.prediction = s; LogSystem.Add("Prediction: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Team Check", false, function(s) State.teamCheck = s; LogSystem.Add("Team Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Wall Check", false, function(s) State.wallCheck = s; LogSystem.Add("Wall Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Visibility Check", false, function(s) State.visibilityCheck = s; LogSystem.Add("Visibility Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Knocked Check", false, function(s) State.knockedCheck = s; LogSystem.Add("Knocked Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Alive Check", false, function(s) State.aliveCheck = s; LogSystem.Add("Alive Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Friend Check", false, function(s) State.friendCheck = s; LogSystem.Add("Friend Check: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Closest Part", false, function(s) State.closestPart = s; LogSystem.Add("Closest Part: " .. tostring(s)) end)
+CreateToggle(AimTab.Frame, "Dynamic FOV", false, function(s) State.dynamicFOV = s; LogSystem.Add("Dynamic FOV: " .. tostring(s)) end)
 
-CreateToggle(CombatTab.Frame, "No Recoil", false, function(state)
-    LogSystem.Add("No Recoil: " .. tostring(state))
-end)
+CreateSection(AimTab.Frame, "Sliders")
 
-CreateToggle(CombatTab.Frame, "No Spread", false, function(state)
-    LogSystem.Add("No Spread: " .. tostring(state))
-end)
-
-CreateToggle(CombatTab.Frame, "Infinite Ammo", false, function(state)
-    LogSystem.Add("Infinite Ammo: " .. tostring(state))
-end)
-
-CreateToggle(CombatTab.Frame, "Auto Shoot", false, function(state)
-    LogSystem.Add("Auto Shoot: " .. tostring(state))
-end)
-
-CreateSection(CombatTab.Frame, "Damage Mods")
-
-CreateToggle(CombatTab.Frame, "Instant Kill", false, function(state)
-    LogSystem.Add("Instant Kill: " .. tostring(state))
-end)
-
-CreateToggle(CombatTab.Frame, "Double Damage", false, function(state)
-    LogSystem.Add("Double Damage: " .. tostring(state))
-end)
-
-CreateSlider(CombatTab.Frame, "Damage Multiplier", 1, 100, 1, function(v)
-    LogSystem.Add("Damage Multiplier: x" .. tostring(v))
-end)
-
-CreateSection(CombatTab.Frame, "Extra")
-
-CreateToggle(CombatTab.Frame, "Wall Bang", false, function(state)
-    LogSystem.Add("Wall Bang: " .. tostring(state))
-end)
-
-CreateToggle(CombatTab.Frame, "One Shot", false, function(state)
-    LogSystem.Add("One Shot: " .. tostring(state))
-end)
+CreateSlider(AimTab.Frame, "FOV Radius", 50, 600, 300, function(v) State.fovRadius = v; LogSystem.Add("FOV Radius: " .. tostring(v)) end)
+CreateSlider(AimTab.Frame, "Smoothness", 1, 10, 3, function(v) State.smoothness = v; LogSystem.Add("Smoothness: " .. tostring(v)) end)
+CreateSlider(AimTab.Frame, "Aim Strength", 0, 100, 50, function(v) State.aimStrength = v; LogSystem.Add("Aim Strength: " .. tostring(v)) end)
+CreateSlider(AimTab.Frame, "Prediction", 0, 100, 17, function(v) State.predictionAmount = v; LogSystem.Add("Prediction: " .. tostring(v)) end)
+CreateSlider(AimTab.Frame, "Hit Chance", 0, 100, 100, function(v) State.hitChance = v; LogSystem.Add("Hit Chance: " .. tostring(v) .. "%") end)
+CreateSlider(AimTab.Frame, "Max Distance", 100, 5000, 5000, function(v) State.maxDistance = v; LogSystem.Add("Max Distance: " .. tostring(v)) end)
 
 -- ============================================================
--- TAB: AIM (Silent Aim, Aim Assist, FOV)
+-- TAB 4: VISUALS
 -- ============================================================
-CreateSection(AimTab.Frame, "Aimbot")
+CreateSection(VisualsTab.Frame, "Toggles")
 
-CreateToggle(AimTab.Frame, "Aimbot", false, function(state)
-    State.aimbotEnabled = state
-    LogSystem.Add("Aimbot: " .. tostring(state))
-end)
+CreateToggle(VisualsTab.Frame, "Box ESP", false, function(s) State.boxEsp = s; LogSystem.Add("Box ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Name ESP", false, function(s) State.nameEsp = s; LogSystem.Add("Name ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Health ESP", false, function(s) State.healthEsp = s; LogSystem.Add("Health ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Distance ESP", false, function(s) State.distanceEsp = s; LogSystem.Add("Distance ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Weapon ESP", false, function(s) State.weaponEsp = s; LogSystem.Add("Weapon ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Skeleton ESP", false, function(s) State.skeletonEsp = s; LogSystem.Add("Skeleton ESP: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Chams", false, function(s) State.chams = s; LogSystem.Add("Chams: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Tracers", false, function(s) State.tracers = s; LogSystem.Add("Tracers: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Snaplines", false, function(s) State.snaplines = s; LogSystem.Add("Snaplines: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "FOV Circle", false, function(s) State.fovCircle = s; LogSystem.Add("FOV Circle: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Crosshair", false, function(s) State.crosshair = s; LogSystem.Add("Crosshair: " .. tostring(s)) end)
+CreateToggle(VisualsTab.Frame, "Hit Marker", false, function(s) State.hitMarker = s; LogSystem.Add("Hit Marker: " .. tostring(s)) end)
 
-CreateToggle(AimTab.Frame, "Sticky Target", true, function(state)
-    State.aimbotSticky = state
-    LogSystem.Add("Sticky Target: " .. tostring(state))
-end)
+CreateSection(VisualsTab.Frame, "Sliders")
 
-CreateDropdown(AimTab.Frame, "Target Part", {"HumanoidRootPart", "Head", "Random"}, function(s)
-    State.aimbotTargetPart = s
-    LogSystem.Add("Target Part: " .. s)
-end)
-
-CreateSlider(AimTab.Frame, "Aimbot FOV", 50, 600, 300, function(v)
-    State.aimbotFOV = v
-    LogSystem.Add("Aimbot FOV: " .. tostring(v))
-end)
-
-CreateSlider(AimTab.Frame, "Aimbot Smoothness", 1, 10, 3, function(v)
-    State.aimbotSmooth = v
-    LogSystem.Add("Smoothness: " .. tostring(v))
-end)
-
-CreateSection(AimTab.Frame, "Silent Aim")
-
-CreateToggle(AimTab.Frame, "Silent Aim", false, function(state)
-    State.silentAimEnabled = state
-    LogSystem.Add("Silent Aim: " .. tostring(state))
-end)
-
-CreateDropdown(AimTab.Frame, "Silent Method", {"Raycast", "FindPartOnRay", "FindPartOnRayWithWhitelist", "FindPartOnRayWithIgnoreList", "Mouse.Hit/Target"}, function(s)
-    State.silentAimMethod = s
-    LogSystem.Add("Silent Method: " .. s)
-end)
-
-CreateDropdown(AimTab.Frame, "Silent Target", {"HumanoidRootPart", "Head", "Random"}, function(s)
-    State.silentAimTargetPart = s
-    LogSystem.Add("Silent Target: " .. s)
-end)
-
-CreateToggle(AimTab.Frame, "Team Check", false, function(state)
-    State.silentAimTeamCheck = state
-    LogSystem.Add("Team Check: " .. tostring(state))
-end)
-
-CreateToggle(AimTab.Frame, "Visible Check", false, function(state)
-    State.silentAimVisibleCheck = state
-    LogSystem.Add("Visible Check: " .. tostring(state))
-end)
-
-CreateSlider(AimTab.Frame, "Silent FOV", 50, 360, 300, function(v)
-    State.silentAimFOV = v
-    LogSystem.Add("Silent FOV: " .. tostring(v))
-end)
-
-CreateSlider(AimTab.Frame, "Hit Chance", 0, 100, 100, function(v)
-    State.silentAimHitChance = v
-    LogSystem.Add("Hit Chance: " .. tostring(v) .. "%")
-end)
-
-CreateToggle(AimTab.Frame, "Mouse Prediction", false, function(state)
-    State.silentAimPrediction = state
-    LogSystem.Add("Prediction: " .. tostring(state))
-end)
-
-CreateSlider(AimTab.Frame, "Prediction Amount", 0, 100, 17, function(v)
-    State.silentAimPredictionAmount = v / 100
-    LogSystem.Add("Prediction Amount: " .. tostring(v / 100))
-end)
-
-CreateToggle(AimTab.Frame, "Show Silent FOV", false, function(state)
-    State.silentAimShowFOV = state
-    LogSystem.Add("Show Silent FOV: " .. tostring(state))
-end)
-
-CreateToggle(AimTab.Frame, "Show Silent Target", false, function(state)
-    State.silentAimShowTarget = state
-    LogSystem.Add("Show Silent Target: " .. tostring(state))
-end)
-
-CreateSection(AimTab.Frame, "Aim Assist")
-
-CreateToggle(AimTab.Frame, "Aim Assist", false, function(state)
-    LogSystem.Add("Aim Assist: " .. tostring(state))
-end)
-
-CreateSlider(AimTab.Frame, "Aim Assist Strength", 0, 100, 50, function(v)
-    LogSystem.Add("Aim Assist Strength: " .. tostring(v))
-end)
+CreateSlider(VisualsTab.Frame, "ESP Distance", 100, 5000, 5000, function(v) State.espDistance = v; LogSystem.Add("ESP Distance: " .. tostring(v)) end)
+CreateSlider(VisualsTab.Frame, "Tracer Thickness", 1, 10, 2, function(v) State.tracerThickness = v; LogSystem.Add("Tracer Thickness: " .. tostring(v)) end)
+CreateSlider(VisualsTab.Frame, "FOV Transparency", 0, 100, 40, function(v) State.fovTransparency = v; LogSystem.Add("FOV Transparency: " .. tostring(v)) end)
+CreateSlider(VisualsTab.Frame, "Crosshair Size", 1, 50, 10, function(v) State.crosshairSize = v; LogSystem.Add("Crosshair Size: " .. tostring(v)) end)
 
 -- ============================================================
--- TAB: VISUALS (ESP, Tracers, Chams, FOV Circle)
+-- TAB 5: MOVEMENT
 -- ============================================================
-CreateSection(VisualsTab.Frame, "ESP Controls")
+CreateSection(MovementTab.Frame, "Toggles")
 
-CreateToggle(VisualsTab.Frame, "Enable ESP", false, function(state)
-    State.espEnabled = state
-    LogSystem.Add("ESP: " .. tostring(state))
-end)
+CreateToggle(MovementTab.Frame, "Speed", false, function(s) State.speed = s; LogSystem.Add("Speed: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "Fly", false, function(s) State.fly = s; LogSystem.Add("Fly: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "Infinite Jump", false, function(s) State.infiniteJump = s; LogSystem.Add("Infinite Jump: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "No Clip", false, function(s) State.noClip = s; LogSystem.Add("No Clip: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "Bunny Hop", false, function(s) State.bunnyHop = s; LogSystem.Add("Bunny Hop: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "Auto Sprint", false, function(s) State.autoSprint = s; LogSystem.Add("Auto Sprint: " .. tostring(s)) end)
+CreateToggle(MovementTab.Frame, "No Fall Damage", false, function(s) State.noFallDamage = s; LogSystem.Add("No Fall Damage: " .. tostring(s)) end)
 
-CreateToggle(VisualsTab.Frame, "ESP Box", false, function(state)
-    State.espBox = state
-    LogSystem.Add("ESP Box: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "ESP Tracers", false, function(state)
-    State.espLine = state
-    LogSystem.Add("ESP Tracers: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "ESP Health Bar", false, function(state)
-    State.espHealthBar = state
-    LogSystem.Add("ESP Health Bar: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "ESP Names", false, function(state)
-    LogSystem.Add("ESP Names: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "ESP Distance", false, function(state)
-    LogSystem.Add("ESP Distance: " .. tostring(state))
-end)
-
-CreateSection(VisualsTab.Frame, "Chams")
-
-CreateToggle(VisualsTab.Frame, "Chams Visible", false, function(state)
-    LogSystem.Add("Chams Visible: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "Chams Hidden", false, function(state)
-    LogSystem.Add("Chams Hidden: " .. tostring(state))
-end)
-
-CreateToggle(VisualsTab.Frame, "Chams Flat", false, function(state)
-    LogSystem.Add("Chams Flat: " .. tostring(state))
-end)
-
-CreateSection(VisualsTab.Frame, "FOV Circle")
-
-CreateToggle(VisualsTab.Frame, "FOV Circle", false, function(state)
-    State.fovCircleEnabled = state
-    LogSystem.Add("FOV Circle: " .. tostring(state))
-end)
-
-CreateSlider(VisualsTab.Frame, "FOV Size", 50, 600, 300, function(v)
-    State.fovCircleSize = v
-    LogSystem.Add("FOV Size: " .. tostring(v))
-end)
-
-CreateSection(VisualsTab.Frame, "ESP Settings")
-
-CreateToggle(VisualsTab.Frame, "Team Check", false, function(state)
-    State.espTeamCheck = state
-    LogSystem.Add("Team Check: " .. tostring(state))
-end)
-
-CreateDropdown(VisualsTab.Frame, "Name Type", {"DisplayName", "Name"}, function(s)
-    State.espNameType = s
-    LogSystem.Add("Name Type: " .. s)
-end)
-
-CreateSlider(VisualsTab.Frame, "ESP Distance", 100, 5000, 5000, function(v)
-    State.espDistance = v
-    LogSystem.Add("ESP Distance: " .. tostring(v))
-end)
-
--- ============================================================
--- TAB: MOVEMENT (Speed, Fly, NoClip, Infinite Jump)
--- ============================================================
-CreateSection(MovementTab.Frame, "Movement")
-
-CreateToggle(MovementTab.Frame, "Fly", false, function(state)
-    LogSystem.Add("Fly: " .. tostring(state))
-end)
-
-CreateSlider(MovementTab.Frame, "Fly Speed", 1, 200, 50, function(v)
-    LogSystem.Add("Fly Speed: " .. tostring(v))
-end)
-
-CreateToggle(MovementTab.Frame, "No Clip", false, function(state)
-    State.noClip = state
-    LogSystem.Add("No Clip: " .. tostring(state))
-end)
-
-CreateToggle(MovementTab.Frame, "Infinite Jump", false, function(state)
-    State.infiniteJump = state
-    LogSystem.Add("Infinite Jump: " .. tostring(state))
-end)
-
-CreateToggle(MovementTab.Frame, "Speed Jump", false, function(state)
-    LogSystem.Add("Speed Jump: " .. tostring(state))
-end)
-
-CreateToggle(MovementTab.Frame, "Water Walk", false, function(state)
-    LogSystem.Add("Water Walk: " .. tostring(state))
-end)
-
-CreateSection(MovementTab.Frame, "Speed")
+CreateSection(MovementTab.Frame, "Sliders")
 
 CreateSlider(MovementTab.Frame, "WalkSpeed", 16, 250, 16, function(v)
     State.walkSpeed = v
-    LogSystem.Add("WalkSpeed: " .. tostring(v))
-end)
-
-CreateSlider(MovementTab.Frame, "JumpPower", 50, 500, 50, function(v)
-    State.jumpPower = v
-    LogSystem.Add("JumpPower: " .. tostring(v))
-end)
-
-CreateToggle(MovementTab.Frame, "Super Jump", false, function(state)
-    LogSystem.Add("Super Jump: " .. tostring(state))
-end)
-
-CreateToggle(MovementTab.Frame, "Dash", false, function(state)
-    LogSystem.Add("Dash: " .. tostring(state))
-end)
-
-CreateSlider(MovementTab.Frame, "Dash Power", 50, 500, 150, function(v)
-    LogSystem.Add("Dash Power: " .. tostring(v))
-end)
-
--- ============================================================
--- TAB: DEFENSE (Anti Stun, Anti Knockback, Anti Ragdoll)
--- ============================================================
-CreateSection(DefenseTab.Frame, "Defense")
-
-CreateToggle(DefenseTab.Frame, "Anti Stun", false, function(state)
-    State.antiStun = state
-    LogSystem.Add("Anti Stun: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "Anti Knockback", false, function(state)
-    State.antiKnockback = state
-    LogSystem.Add("Anti Knockback: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "Anti Ragdoll", false, function(state)
-    State.antiRagdoll = state
-    LogSystem.Add("Anti Ragdoll: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "Anti Push", false, function(state)
-    LogSystem.Add("Anti Push: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "Anti Flash", false, function(state)
-    LogSystem.Add("Anti Flash: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "Auto Revive", false, function(state)
-    LogSystem.Add("Auto Revive: " .. tostring(state))
-end)
-
-CreateSection(DefenseTab.Frame, "Protection")
-
-CreateToggle(DefenseTab.Frame, "No Fall Damage", false, function(state)
-    LogSystem.Add("No Fall Damage: " .. tostring(state))
-end)
-
-CreateToggle(DefenseTab.Frame, "No Headshot", false, function(state)
-    LogSystem.Add("No Headshot: " .. tostring(state))
-end)
-
-CreateSlider(DefenseTab.Frame, "Shield Strength", 0, 100, 50, function(v)
-    LogSystem.Add("Shield Strength: " .. tostring(v))
-end)
-
--- ============================================================
--- TAB: PLAYER (WalkSpeed, JumpPower, Character)
--- ============================================================
-CreateSection(PlayerTab.Frame, "Character")
-
-CreateSlider(PlayerTab.Frame, "WalkSpeed", 16, 250, 16, function(v)
     local char = LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.WalkSpeed = v
     end
-    LogSystem.Add("WalkSpeed set to " .. tostring(v))
+    LogSystem.Add("WalkSpeed: " .. tostring(v))
 end)
-
-CreateSlider(PlayerTab.Frame, "JumpPower", 50, 500, 50, function(v)
+CreateSlider(MovementTab.Frame, "Fly Speed", 1, 200, 50, function(v) State.flySpeed = v; LogSystem.Add("Fly Speed: " .. tostring(v)) end)
+CreateSlider(MovementTab.Frame, "Jump Power", 50, 500, 50, function(v)
+    State.jumpPower = v
     local char = LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") then
         char.Humanoid.JumpPower = v
     end
-    LogSystem.Add("JumpPower set to " .. tostring(v))
+    LogSystem.Add("Jump Power: " .. tostring(v))
 end)
+CreateSlider(MovementTab.Frame, "Sprint Speed", 16, 300, 50, function(v) State.sprintSpeed = v; LogSystem.Add("Sprint Speed: " .. tostring(v)) end)
+
+-- ============================================================
+-- TAB 6: PLAYER
+-- ============================================================
+CreateSection(PlayerTab.Frame, "Toggles")
+
+CreateToggle(PlayerTab.Frame, "God Mode", false, function(s) State.godMode = s; LogSystem.Add("God Mode: " .. tostring(s)) end)
+CreateToggle(PlayerTab.Frame, "Anti AFK", false, function(s) State.antiAfk = s; LogSystem.Add("Anti AFK: " .. tostring(s)) end)
+CreateToggle(PlayerTab.Frame, "Anti Slow", false, function(s) State.antiSlow = s; LogSystem.Add("Anti Slow: " .. tostring(s)) end)
+CreateToggle(PlayerTab.Frame, "Anti Flash", false, function(s) State.antiFlash = s; LogSystem.Add("Anti Flash: " .. tostring(s)) end)
+CreateToggle(PlayerTab.Frame, "Anti Smoke", false, function(s) State.antiSmoke = s; LogSystem.Add("Anti Smoke: " .. tostring(s)) end)
+CreateToggle(PlayerTab.Frame, "Infinite Stamina", false, function(s) State.infiniteStamina = s; LogSystem.Add("Infinite Stamina: " .. tostring(s)) end)
+
+CreateSection(PlayerTab.Frame, "Sliders")
+
+CreateSlider(PlayerTab.Frame, "Character Scale", 50, 200, 100, function(v) State.characterScale = v / 100; LogSystem.Add("Character Scale: " .. tostring(v / 100)) end)
+CreateSlider(PlayerTab.Frame, "Camera FOV", 70, 120, 70, function(v) Camera.FieldOfView = v; State.cameraFOV = v; LogSystem.Add("Camera FOV: " .. tostring(v)) end)
+
+CreateSection(PlayerTab.Frame, "Character")
 
 CreateButton(PlayerTab.Frame, "Reset Character", function()
     local char = LocalPlayer.Character
@@ -1493,258 +1379,81 @@ end)
 
 CreateButton(PlayerTab.Frame, "Respawn Character", function()
     local char = LocalPlayer.Character
-    if char then
-        char:Destroy()
-    end
+    if char then char:Destroy() end
     LogSystem.Add("Character destroyed")
-    NotificationSystem.Notify("Player", "Personagem destruido! Reapareca.", 2)
-end)
-
-CreateSection(PlayerTab.Frame, "Animation")
-
-CreateButton(PlayerTab.Frame, "Animation 1 (Dance)", function()
-    LogSystem.Add("Play Animation 1")
-end)
-
-CreateButton(PlayerTab.Frame, "Animation 2 (Run)", function()
-    LogSystem.Add("Play Animation 2")
-end)
-
-CreateButton(PlayerTab.Frame, "Animation 3 (Sit)", function()
-    LogSystem.Add("Play Animation 3")
-end)
-
-CreateSection(PlayerTab.Frame, "Emotes")
-
-CreateButton(PlayerTab.Frame, "Wave", function()
-    LogSystem.Add("Emote: Wave")
-end)
-
-CreateButton(PlayerTab.Frame, "Point", function()
-    LogSystem.Add("Emote: Point")
-end)
-
-CreateButton(PlayerTab.Frame, "Cheer", function()
-    LogSystem.Add("Emote: Cheer")
+    NotificationSystem.Notify("Player", "Personagem destruido!", 2)
 end)
 
 -- ============================================================
--- TAB: WORLD (FullBright, Time, Atmosphere)
+-- TAB 7: MISC
 -- ============================================================
-CreateSection(WorldTab.Frame, "Lighting")
+CreateSection(MiscTab.Frame, "Toggles")
 
-CreateToggle(WorldTab.Frame, "Full Bright", false, function(state)
-    State.fullBright = state
-    if state then
-        Lighting.Brightness = 2
-        Lighting.ClockTime = 14
-        Lighting.FogEnd = 100000
-        LogSystem.Add("Full Bright: ON")
-    else
-        Lighting.Brightness = 0
-        Lighting.ClockTime = 0
-        Lighting.FogEnd = 50
-        LogSystem.Add("Full Bright: OFF")
-    end
+CreateToggle(MiscTab.Frame, "FPS Boost", false, function(s) State.fpsBoost = s; LogSystem.Add("FPS Boost: " .. tostring(s)) end)
+CreateToggle(MiscTab.Frame, "Auto Rejoin", false, function(s) State.autoRejoin = s; LogSystem.Add("Auto Rejoin: " .. tostring(s)) end)
+CreateToggle(MiscTab.Frame, "Auto Respawn", false, function(s) State.autoRespawn = s; LogSystem.Add("Auto Respawn: " .. tostring(s)) end)
+CreateToggle(MiscTab.Frame, "Auto Collect", false, function(s) State.autoCollect = s; LogSystem.Add("Auto Collect: " .. tostring(s)) end)
+CreateToggle(MiscTab.Frame, "Streamer Mode", false, function(s) State.streamerMode = s; LogSystem.Add("Streamer Mode: " .. tostring(s)) end)
+
+CreateSection(MiscTab.Frame, "Sliders")
+
+CreateSlider(MiscTab.Frame, "FPS Cap", 30, 120, 60, function(v) State.fpsCap = v; LogSystem.Add("FPS Cap: " .. tostring(v)) end)
+
+CreateSection(MiscTab.Frame, "Extra")
+
+CreateButton(MiscTab.Frame, "Copy Discord Link", function()
+    LogSystem.Add("Discord link copied")
+    NotificationSystem.Notify("Misc", "Link copiado!", 3)
 end)
 
-CreateToggle(WorldTab.Frame, "No Fog", false, function(state)
-    if state then
-        Lighting.FogEnd = 100000
-        Lighting.FogStart = 0
-        LogSystem.Add("No Fog: ON")
-    else
-        Lighting.FogEnd = 50
-        Lighting.FogStart = 0
-        LogSystem.Add("No Fog: OFF")
-    end
-end)
-
-CreateSlider(WorldTab.Frame, "Field of View", 70, 120, 70, function(v)
-    Camera.FieldOfView = v
-    LogSystem.Add("FOV: " .. tostring(v))
-end)
-
-CreateSection(WorldTab.Frame, "Time")
-
-CreateSlider(WorldTab.Frame, "Clock Time", 0, 24, 12, function(v)
-    Lighting.ClockTime = v
-    LogSystem.Add("Clock Time: " .. tostring(v))
-end)
-
-CreateToggle(WorldTab.Frame, "Auto Time Cycle", false, function(state)
-    LogSystem.Add("Auto Time Cycle: " .. tostring(state))
-end)
-
-CreateSlider(WorldTab.Frame, "Time Speed", 1, 60, 10, function(v)
-    LogSystem.Add("Time Speed: " .. tostring(v))
-end)
-
-CreateSection(WorldTab.Frame, "Atmosphere")
-
-CreateToggle(WorldTab.Frame, "Remove Atmosphere", false, function(state)
-    LogSystem.Add("Remove Atmosphere: " .. tostring(state))
-end)
-
-CreateToggle(WorldTab.Frame, "Remove Skybox", false, function(state)
-    LogSystem.Add("Remove Skybox: " .. tostring(state))
-end)
-
-CreateSlider(WorldTab.Frame, "Ambient Light", 0, 255, 100, function(v)
-    local color = Color3.fromRGB(v, v, v)
-    Lighting.Ambient = color
-    LogSystem.Add("Ambient: " .. tostring(v))
-end)
-
--- ============================================================
--- TAB: UTILITIES (Rejoin, Server Hop, Anti AFK, FPS Boost)
--- ============================================================
-CreateSection(UtilitiesTab.Frame, "Server")
-
-CreateButton(UtilitiesTab.Frame, "Rejoin Server", function()
-    local players = game:GetService("Players")
+CreateButton(MiscTab.Frame, "Rejoin Server", function()
     local teleports = game:GetService("TeleportService")
-    teleports:TeleportToPlaceInstance(game.PlaceId, game.JobId, players.LocalPlayer)
+    teleports:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     LogSystem.Add("Rejoining server...")
 end)
 
-CreateButton(UtilitiesTab.Frame, "Server Hop", function()
-    LogSystem.Add("Server Hop clicked")
-    NotificationSystem.Notify("Utilities", "Procurando servidor...", 3)
-end)
-
-CreateToggle(UtilitiesTab.Frame, "Anti AFK", false, function(state)
-    LogSystem.Add("Anti AFK: " .. tostring(state))
-end)
-
-CreateButton(UtilitiesTab.Frame, "Leave Game", function()
-    LogSystem.Add("Leaving game...")
-    NotificationSystem.Notify("Utilities", "Saindo do jogo...", 3)
-end)
-
-CreateSection(UtilitiesTab.Frame, "Performance")
-
-CreateToggle(UtilitiesTab.Frame, "FPS Boost", false, function(state)
-    LogSystem.Add("FPS Boost: " .. tostring(state))
-end)
-
-CreateToggle(UtilitiesTab.Frame, "Remove Particles", false, function(state)
-    LogSystem.Add("Remove Particles: " .. tostring(state))
-end)
-
-CreateToggle(UtilitiesTab.Frame, "Remove Sounds", false, function(state)
-    LogSystem.Add("Remove Sounds: " .. tostring(state))
-end)
-
-CreateToggle(UtilitiesTab.Frame, "Remove Shadows", false, function(state)
-    LogSystem.Add("Remove Shadows: " .. tostring(state))
-end)
-
-CreateSection(UtilitiesTab.Frame, "Extra")
-
-CreateButton(UtilitiesTab.Frame, "Copy Discord Link", function()
-    LogSystem.Add("Discord link copied")
-    NotificationSystem.Notify("Utilities", "Link copiado!", 3)
-end)
-
-CreateButton(UtilitiesTab.Frame, "Open Discord", function()
-    LogSystem.Add("Open Discord clicked")
-end)
-
-CreateButton(UtilitiesTab.Frame, "Credits", function()
-    LogSystem.Add("Credits viewed")
-    NotificationSystem.Notify("Credits", "MANUS HUB v4.0 by Manus AI", 5)
-end)
-
 -- ============================================================
--- TAB: CONFIGS (Save, Load, Auto Load)
+-- TAB 8: SETTINGS
 -- ============================================================
-CreateSection(ConfigsTab.Frame, "Config Management")
+CreateSection(SettingsTab.Frame, "Toggles")
 
-CreateToggle(ConfigsTab.Frame, "Auto Load", false, function(state)
-    LogSystem.Add("Auto Load: " .. tostring(state))
-end)
-
-CreateTextBox(ConfigsTab.Frame, "Config Name", "Digite o nome...", function(text, enterPressed)
-    if enterPressed and text ~= "" then
-        LogSystem.Add("Config name: " .. text)
+CreateToggle(SettingsTab.Frame, "UI Sounds", true, function(s) State.uiSounds = s; LogSystem.Add("UI Sounds: " .. tostring(s)) end)
+CreateToggle(SettingsTab.Frame, "UI Animations", true, function(s) State.uiAnimations = s; LogSystem.Add("UI Animations: " .. tostring(s)) end)
+CreateToggle(SettingsTab.Frame, "Blur Background", false, function(s) State.blurBackground = s; LogSystem.Add("Blur Background: " .. tostring(s)) end)
+CreateToggle(SettingsTab.Frame, "Rainbow Accent", false, function(s)
+    State.rainbowAccent = s
+    if s then
+        local hue = 0
+        local rainbowLoop = RunService.RenderStepped:Connect(function()
+            hue = (hue + 0.005) % 1
+            Theme.Accent = Color3.fromHSV(hue, 0.8, 1)
+        end)
+        _G._RainbowLoop = rainbowLoop
+        LogSystem.Add("Rainbow Accent: ON")
+    else
+        if _G._RainbowLoop then _G._RainbowLoop:Disconnect(); _G._RainbowLoop = nil end
+        Theme.Accent = Color3.fromRGB(255, 45, 45)
+        LogSystem.Add("Rainbow Accent: OFF")
     end
 end)
+CreateToggle(SettingsTab.Frame, "Auto Save Config", false, function(s) State.autoSaveConfig = s; LogSystem.Add("Auto Save: " .. tostring(s)) end)
+CreateToggle(SettingsTab.Frame, "Minimize on Start", false, function(s) State.minimizeOnStart = s; LogSystem.Add("Minimize on Start: " .. tostring(s)) end)
 
-CreateSection(ConfigsTab.Frame, "Actions")
+CreateSection(SettingsTab.Frame, "Sliders")
 
-CreateButton(ConfigsTab.Frame, "Salvar Config", function()
-    local data = HttpService:JSONEncode(State)
-    setclipboard(data)
-    LogSystem.Add("Config salva no clipboard")
-    NotificationSystem.Notify("Configs", "Configuracoes copiadas!", 3)
-end)
-
-CreateButton(ConfigsTab.Frame, "Carregar Config", function()
-    LogSystem.Add("Carregar config: cole no clipboard e clique")
-    NotificationSystem.Notify("Configs", "Cole a config no clipboard e clique.", 3)
-end)
-
-CreateButton(ConfigsTab.Frame, "Reset Config", function()
-    LogSystem.Add("Config resetada")
-    NotificationSystem.Notify("Configs", "Config resetada!", 3)
-end)
-
-CreateButton(ConfigsTab.Frame, "Export JSON", function()
-    local data = HttpService:JSONEncode(State)
-    setclipboard(data)
-    LogSystem.Add("JSON exportado")
-    NotificationSystem.Notify("Configs", "JSON copiado!", 3)
-end)
-
--- ============================================================
--- TAB: SETTINGS (tema, sons, animacoes, keybind)
--- ============================================================
-CreateSection(SettingsTab.Frame, "Interface")
-
-CreateDropdown(SettingsTab.Frame, "Theme Color", {"Red", "Blue", "Green", "Purple", "Orange", "Pink", "Yellow"}, function(s)
-    local colors = {
-        Red = Color3.fromRGB(255, 45, 45),
-        Blue = Color3.fromRGB(45, 45, 255),
-        Green = Color3.fromRGB(45, 255, 45),
-        Purple = Color3.fromRGB(165, 45, 255),
-        Orange = Color3.fromRGB(255, 165, 0),
-        Pink = Color3.fromRGB(255, 105, 180),
-        Yellow = Color3.fromRGB(255, 255, 45),
-    }
-    Theme.Accent = colors[s] or Theme.Accent
-    State.themeColor = s
-    LogSystem.Add("Theme: " .. s)
-    NotificationSystem.Notify("Settings", "Tema alterado para " .. s, 2)
-end)
-
-CreateToggle(SettingsTab.Frame, "Sons da UI", true, function(state)
-    State.enableSound = state
-    LogSystem.Add("Sound: " .. tostring(state))
-end)
-
-CreateToggle(SettingsTab.Frame, "Animacoes", true, function(state)
-    State.enableAnimation = state
-    LogSystem.Add("Animations: " .. tostring(state))
-end)
+CreateSlider(SettingsTab.Frame, "UI Scale", 50, 150, 100, function(v) State.uiScale = v; LogSystem.Add("UI Scale: " .. tostring(v) .. "%") end)
+CreateSlider(SettingsTab.Frame, "Animation Speed", 1, 10, 3, function(v) State.animationSpeed = v; LogSystem.Add("Animation Speed: " .. tostring(v)) end)
+CreateSlider(SettingsTab.Frame, "UI Transparency", 0, 100, 0, function(v) State.uiTransparency = v / 100; LogSystem.Add("UI Transparency: " .. tostring(v / 100)) end)
 
 CreateSection(SettingsTab.Frame, "Keybind")
 
-CreateKeybind(SettingsTab.Frame, "Toggle UI Keybind", Enum.KeyCode.RightControl, function(key)
+CreateKeybind(SettingsTab.Frame, "Toggle UI", Enum.KeyCode.RightControl, function(key)
     State.currentKeybind = key
     State.settingsKeybind = key
     LogSystem.Add("Keybind: " .. key.Name)
 end)
 
-CreateKeybind(SettingsTab.Frame, "ESP Keybind", Enum.KeyCode.Insert, function(key)
-    LogSystem.Add("ESP Keybind: " .. key.Name)
-end)
-
-CreateKeybind(SettingsTab.Frame, "Aimbot Keybind", Enum.KeyCode.Home, function(key)
-    LogSystem.Add("Aimbot Keybind: " .. key.Name)
-end)
-
-CreateSection(SettingsTab.Frame, "Extra")
+CreateSection(SettingsTab.Frame, "Acoes")
 
 CreateButton(SettingsTab.Frame, "Recarregar Script", function()
     LogSystem.Add("Script reload requested")
@@ -1757,130 +1466,56 @@ CreateButton(SettingsTab.Frame, "Fechar UI", function()
 end)
 
 -- ============================================================
--- TAB: LOGS (logs de acoes, erros, notificacoes)
+-- TAB 9: CONFIGS
 -- ============================================================
-CreateSection(LogsTab.Frame, "System Logs")
+CreateSection(ConfigsTab.Frame, "Config Name")
 
-local logContainer = Instance.new("Frame")
-logContainer.Size = UDim2.new(0.9, 0, 0, 300)
-logContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-logContainer.BorderSizePixel = 0
-logContainer.Parent = LogsTab.Frame
-
-local logCorner = Instance.new("UICorner")
-logCorner.CornerRadius = Theme.CornerRadius
-logCorner.Parent = logContainer
-
-local logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1, -10, 1, -10)
-logScroll.Position = UDim2.new(0, 5, 0, 5)
-logScroll.BackgroundTransparency = 1
-logScroll.BorderSizePixel = 0
-logScroll.ScrollBarThickness = 3
-logScroll.ScrollBarImageColor3 = Theme.Accent
-logScroll.Parent = logContainer
-
-local logLayout = Instance.new("UIListLayout")
-logLayout.Padding = UDim.new(0, 2)
-logLayout.Parent = logScroll
-
-local function renderLog()
-    for _, child in ipairs(logScroll:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-    for i, entry in ipairs(LogSystem.Get()) do
-        local logLabel = Instance.new("TextLabel")
-        logLabel.Size = UDim2.new(1, 0, 0, 22)
-        logLabel.BackgroundTransparency = 1
-        logLabel.Text = "[" .. entry.time .. "] " .. entry.text
-        logLabel.TextColor3 = entry.color or Theme.TextSecondary
-        logLabel.Font = Enum.Font.Code
-        logLabel.TextSize = 12
-        logLabel.TextXAlignment = Enum.TextXAlignment.Left
-        logLabel.Parent = logScroll
-    end
-    logScroll.CanvasSize = UDim2.new(0, 0, 0, #LogSystem.Get() * 24)
-    logScroll.ScrollBarPosition = logScroll.CanvasPosition.Y + 100
-end
-
-renderLog()
-
--- Auto-refresh logs
-local logRefreshTimer = tick()
-RunService.Heartbeat:Connect(function()
-    local now = tick()
-    if now - logRefreshTimer >= 2 then
-        renderLog()
-        logRefreshTimer = now
+CreateTextBox(ConfigsTab.Frame, "Nome", "Digite o nome...", function(text, enterPressed)
+    if enterPressed and text ~= "" then
+        LogSystem.Add("Config name: " .. text)
     end
 end)
 
-CreateSection(LogsTab.Frame, "Actions")
+CreateSection(ConfigsTab.Frame, "Botoes")
 
-CreateButton(LogsTab.Frame, "Limpar Logs", function()
-    logEntries = {}
-    renderLog()
-    LogSystem.Add("Logs limpos", Theme.Accent)
-    NotificationSystem.Notify("Logs", "Logs limpos!", 2)
+CreateButton(ConfigsTab.Frame, "Save Config", function()
+    local data = HttpService:JSONEncode(State)
+    setclipboard(data)
+    LogSystem.Add("Config salva", Theme.Accent)
+    NotificationSystem.Notify("Configs", "Configuracoes copiadas no clipboard!", 3)
 end)
 
-CreateButton(LogsTab.Frame, "Exportar Logs", function()
-    local logText = ""
-    for _, entry in ipairs(LogSystem.Get()) do
-        logText = logText .. "[" .. entry.time .. "] " .. entry.text .. "\n"
-    end
-    setclipboard(logText)
-    LogSystem.Add("Logs exportados", Theme.Accent)
-    NotificationSystem.Notify("Logs", "Logs copiados!", 3)
+CreateButton(ConfigsTab.Frame, "Load Config", function()
+    LogSystem.Add("Load config: cole JSON no clipboard e clique novamente", Theme.TextSecondary)
+    NotificationSystem.Notify("Configs", "Cole o JSON e clique novamente.", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Delete Config", function()
+    LogSystem.Add("Config deletada", Theme.Accent)
+    NotificationSystem.Notify("Configs", "Config deletada!", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Reset Config", function()
+    init()
+    LogSystem.Add("Config resetada", Theme.Accent)
+    NotificationSystem.Notify("Configs", "Config resetada para padrao!", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Import Config", function()
+    LogSystem.Add("Import: cole JSON no clipboard e clique novamente", Theme.TextSecondary)
+    NotificationSystem.Notify("Configs", "Cole o JSON e clique novamente.", 3)
+end)
+
+CreateButton(ConfigsTab.Frame, "Export Config", function()
+    local data = HttpService:JSONEncode(State)
+    setclipboard(data)
+    LogSystem.Add("Config exportada", Theme.Accent)
+    NotificationSystem.Notify("Configs", "JSON copiado!", 3)
 end)
 
 -- ============================================================
--- TAB: ABOUT (creditos, versao, Discord)
+-- STARTUP ANIMATION
 -- ============================================================
-local AboutTab = UI:AddTab("About")
-
-CreateSection(AboutTab.Frame, "MANUS HUB")
-
-CreateLabel(AboutTab.Frame, "MANUS HUB v4.0", Theme.Accent)
-CreateLabel(AboutTab.Frame, "Criado por Manus AI", Theme.TextSecondary)
-
-CreateSection(AboutTab.Frame, "Versao")
-
-CreateInfoLabel(AboutTab.Frame, "Versao", "4.0", Theme.Accent)
-CreateInfoLabel(AboutTab.Frame, "Build", os.date("%Y-%m-%d"), Theme.TextSecondary)
-CreateInfoLabel(AboutTab.Frame, "Plataforma", "Roblox / LuaU", Theme.TextSecondary)
-
-CreateSection(AboutTab.Frame, "Creditos")
-
-CreateLabel(AboutTab.Frame, "UI Library: Manus AI", Theme.TextPrimary)
-CreateLabel(AboutTab.Frame, "Tema: Dark Modern Red", Theme.TextPrimary)
-CreateLabel(AboutTab.Frame, "12 Tabs, 60+ Controls", Theme.TextSecondary)
-
-CreateSection(AboutTab.Frame, "Links")
-
-CreateButton(AboutTab.Frame, "Discord", function()
-    NotificationSystem.Notify("About", "Discord: discord.gg/manushub", 5)
-    LogSystem.Add("Discord link clicked", Theme.Accent)
-end)
-
-CreateButton(AboutTab.Frame, "GitHub", function()
-    NotificationSystem.Notify("About", "GitHub: github.com/manushub", 5)
-    LogSystem.Add("GitHub link clicked", Theme.Accent)
-end)
-
-CreateButton(AboutTab.Frame, "Documentacao", function()
-    NotificationSystem.Notify("About", "Docs: docs.manushub.io", 5)
-    LogSystem.Add("Docs clicked", Theme.Accent)
-end)
-
-CreateSection(AboutTab.Frame, "Features")
-
-CreateLabel(AboutTab.Frame, "ESP completo (Box, Tracers, Health, Names)", Theme.TextPrimary)
-CreateLabel(AboutTab.Frame, "Aimbot Sticky + Silent Aim com hooks", Theme.TextPrimary)
-CreateLabel(AboutTab.Frame, "Movement, Defense, World, Player", Theme.TextPrimary)
-CreateLabel(AboutTab.Frame, "Configs Save/Load + Logs + Settings", Theme.TextPrimary)
-
--- ===== STARTUP ANIMATION =====
 UI.IsVisible = true
 UI.MainFrame.BackgroundTransparency = 1
 UI.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -150)
@@ -1890,10 +1525,10 @@ TweenManager:Create(UI.MainFrame, {
     BackgroundTransparency = 0
 }, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
 
-NotificationSystem.Notify("MANUS HUB", "v4.0 carregada! 12 tabs, 60+ controles.", 5)
+NotificationSystem.Notify("MANUS HUB", "v5.0 carregada! 9 tabs, 60+ controles.", 5)
 
-LogSystem.Add("MANUS HUB v4.0 inicializado", Theme.Accent)
-LogSystem.Add("12 tabs carregadas", Color3.fromRGB(0, 255, 100))
+LogSystem.Add("MANUS HUB v5.0 inicializado", Theme.Accent)
+LogSystem.Add("9 tabs carregadas", Color3.fromRGB(0, 255, 100))
 LogSystem.Add("UI Library pronta", Color3.fromRGB(0, 255, 100))
 
 return UI

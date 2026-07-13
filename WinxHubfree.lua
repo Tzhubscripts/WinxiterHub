@@ -1232,322 +1232,192 @@ CreateToggle(ESPTab.Frame, "Abrir Color Picker", false, function(s)
 end)
 
 -- ============================================================
--- ESP ENGINE REFEITO
--- Box, Line e Health independentes, com limpeza de estado e bounding box real.
+-- ESP ENGINE (DRAWING API)
+-- Baseado na logica de componentes Drawing para maior performance e precisao.
 -- ============================================================
 
-local ESP_GUI_NAME = "MikasaHub_ESP"
+local ESP_DATA = _G.MikasaESP_Data or {}
+_G.MikasaESP_Data = ESP_DATA
 
-local function DestroyOldESPGui(parent)
-    if not parent then return end
-    pcall(function()
-        for _, child in ipairs(parent:GetChildren()) do
-            if child:IsA("ScreenGui") and string.sub(child.Name, 1, #ESP_GUI_NAME) == ESP_GUI_NAME then
-                child:Destroy()
-            end
-        end
-    end)
-end
-
-DestroyOldESPGui(CoreGui)
-DestroyOldESPGui(LocalPlayer:FindFirstChildOfClass("PlayerGui"))
-
-local espScreenGui = Instance.new("ScreenGui")
-espScreenGui.Name = ESP_GUI_NAME
-espScreenGui.ResetOnSpawn = false
-espScreenGui.IgnoreGuiInset = true
-espScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-espScreenGui.DisplayOrder = 999
-espScreenGui.Enabled = true
-
-local okEsp = pcall(function()
-    espScreenGui.Parent = CoreGui
-end)
-if not okEsp then
-    espScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
-local espData = {}
-
-local function HideESP(data)
-    if not data then return end
-    if data.container then data.container.Visible = false end
-    if data.boxVisual then data.boxVisual.Visible = false end
-    if data.lineFrame then data.lineFrame.Visible = false end
-    if data.healthBg then data.healthBg.Visible = false end
-    if data.nameLabel then data.nameLabel.Visible = false end
-    if data.healthLabel then data.healthLabel.Visible = false end
-end
-
-local function AddESP(player)
-    if player == LocalPlayer or espData[player] then return end
-
-    -- Contem os elementos presos ao retangulo do personagem. Sua visibilidade
-    -- nao depende apenas do ESP Box, permitindo que Health funcione sozinho.
-    local container = Instance.new("Frame")
-    container.Name = "ESP_" .. tostring(player.UserId)
-    container.BackgroundTransparency = 1
-    container.BorderSizePixel = 0
-    container.Visible = false
-    container.ZIndex = 20
-    container.Parent = espScreenGui
-
-    local boxVisual = Instance.new("Frame")
-    boxVisual.Name = "Box"
-    boxVisual.Size = UDim2.fromScale(1, 1)
-    boxVisual.BackgroundColor3 = State.espColor
-    boxVisual.BackgroundTransparency = 0.9
-    boxVisual.BorderSizePixel = 0
-    boxVisual.Visible = false
-    boxVisual.ZIndex = 21
-    boxVisual.Parent = container
-
-    local boxGradient = Instance.new("UIGradient")
-    boxGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, State.espColor),
-        ColorSequenceKeypoint.new(1, State.espColor)
-    })
-    boxGradient.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.78),
-        NumberSequenceKeypoint.new(0.55, 0.93),
-        NumberSequenceKeypoint.new(1, 1)
-    })
-    boxGradient.Rotation = 90
-    boxGradient.Parent = boxVisual
-
-    local boxStroke = Instance.new("UIStroke")
-    boxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    boxStroke.Color = State.espColor
-    boxStroke.Thickness = 1.5
-    boxStroke.Transparency = 0.05
-    boxStroke.Parent = boxVisual
-
-    -- Tracer independente do box.
-    local line = Instance.new("Frame")
-    line.Name = "Tracer"
-    line.AnchorPoint = Vector2.new(0, 0.5)
-    line.BackgroundColor3 = State.espColor
-    line.BackgroundTransparency = 0.15
-    line.BorderSizePixel = 0
-    line.Visible = false
-    line.ZIndex = 19
-    line.Parent = espScreenGui
-
-    -- Barra de vida presa ao lado esquerdo do bounding box.
-    local healthBg = Instance.new("Frame")
-    healthBg.Name = "HealthBackground"
-    healthBg.Size = UDim2.new(0, 5, 1, 0)
-    healthBg.Position = UDim2.new(0, -9, 0, 0)
-    healthBg.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-    healthBg.BackgroundTransparency = 0.15
-    healthBg.BorderSizePixel = 0
-    healthBg.ClipsDescendants = true
-    healthBg.Visible = false
-    healthBg.ZIndex = 22
-    healthBg.Parent = container
-
-    local healthFill = Instance.new("Frame")
-    healthFill.Name = "HealthFill"
-    healthFill.AnchorPoint = Vector2.new(0, 1)
-    healthFill.Position = UDim2.fromScale(0, 1)
-    healthFill.Size = UDim2.fromScale(1, 1)
-    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    healthFill.BorderSizePixel = 0
-    healthFill.ZIndex = 23
-    healthFill.Parent = healthBg
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "Name"
-    nameLabel.AnchorPoint = Vector2.new(0.5, 1)
-    nameLabel.Size = UDim2.new(0, 180, 0, 18)
-    nameLabel.Position = UDim2.new(0.5, 0, 0, -4)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.DisplayName
-    nameLabel.TextColor3 = State.espColor
-    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    nameLabel.TextStrokeTransparency = 0.25
-    nameLabel.Font = Theme.FontBold
-    nameLabel.TextSize = 12
-    nameLabel.Visible = false
-    nameLabel.ZIndex = 24
-    nameLabel.Parent = container
-
-    local healthLabel = Instance.new("TextLabel")
-    healthLabel.Name = "HealthText"
-    healthLabel.AnchorPoint = Vector2.new(0.5, 0)
-    healthLabel.Size = UDim2.new(0, 100, 0, 16)
-    healthLabel.Position = UDim2.new(0.5, 0, 1, 3)
-    healthLabel.BackgroundTransparency = 1
-    healthLabel.Text = "100 HP"
-    healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    healthLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    healthLabel.TextStrokeTransparency = 0.25
-    healthLabel.Font = Theme.FontBold
-    healthLabel.TextSize = 11
-    healthLabel.Visible = false
-    healthLabel.ZIndex = 24
-    healthLabel.Parent = container
-
-    espData[player] = {
-        container = container,
-        boxVisual = boxVisual,
-        boxGradient = boxGradient,
-        boxStroke = boxStroke,
-        lineFrame = line,
-        healthBg = healthBg,
-        healthFill = healthFill,
-        nameLabel = nameLabel,
-        healthLabel = healthLabel,
-    }
+-- Limpa desenhos antigos se o script for reexecutado
+if _G.MikasaESP_Connection then
+    _G.MikasaESP_Connection:Disconnect()
 end
 
 local function RemoveESP(player)
-    local data = espData[player]
-    if not data then return end
-
-    if data.container then data.container:Destroy() end
-    if data.lineFrame then data.lineFrame:Destroy() end
-    espData[player] = nil
+    local data = ESP_DATA[player]
+    if data then
+        if data.Box then data.Box:Remove() end
+        if data.Tracer then data.Tracer:Remove() end
+        if data.Name then data.Name:Remove() end
+        if data.Distance then data.Distance:Remove() end
+        if data.HealthOutline then data.HealthOutline:Remove() end
+        if data.HealthBar then data.HealthBar:Remove() end
+        ESP_DATA[player] = nil
+    end
 end
 
-local function IsSameTeam(player)
-    if not State.espTeamCheck then return false end
-    if LocalPlayer.Neutral or player.Neutral then return false end
-    if LocalPlayer.Team == nil or player.Team == nil then return false end
-    return LocalPlayer.Team == player.Team
+local function CreateESP(player)
+    if ESP_DATA[player] then return end
+    
+    local components = {
+        Box = Drawing.new("Square"),
+        Tracer = Drawing.new("Line"),
+        Name = Drawing.new("Text"),
+        Distance = Drawing.new("Text"),
+        HealthOutline = Drawing.new("Square"),
+        HealthBar = Drawing.new("Square")
+    }
+    
+    -- Configurações iniciais
+    components.Box.Thickness = 1.5
+    components.Box.Filled = false
+    components.Box.Transparency = 1
+    
+    components.Tracer.Thickness = 1.5
+    components.Tracer.Transparency = 1
+    
+    components.Name.Size = 14
+    components.Name.Center = true
+    components.Name.Outline = true
+    components.Name.Transparency = 1
+    
+    components.Distance.Size = 13
+    components.Distance.Center = true
+    components.Distance.Outline = true
+    components.Distance.Transparency = 1
+    
+    components.HealthOutline.Thickness = 1
+    components.HealthOutline.Filled = false
+    components.HealthOutline.Transparency = 1
+    
+    components.HealthBar.Thickness = 1
+    components.HealthBar.Filled = true
+    components.HealthBar.Transparency = 1
+    
+    ESP_DATA[player] = components
 end
 
-local function GetCharacterScreenBounds(character)
-    if not Camera then return nil end
-
-    local ok, boundsCFrame, boundsSize = pcall(function()
-        local cf, size = character:GetBoundingBox()
-        return cf, size
-    end)
-    if not ok or not boundsCFrame or not boundsSize then return nil end
-
-    local half = boundsSize * 0.5
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local projected = 0
-
-    for x = -1, 1, 2 do
-        for y = -1, 1, 2 do
-            for z = -1, 1, 2 do
-                local worldPoint = boundsCFrame:PointToWorldSpace(Vector3.new(
-                    half.X * x,
-                    half.Y * y,
-                    half.Z * z
-                ))
-                local screenPoint = Camera:WorldToViewportPoint(worldPoint)
-                if screenPoint.Z > 0 then
-                    projected = projected + 1
-                    minX = math.min(minX, screenPoint.X)
-                    minY = math.min(minY, screenPoint.Y)
-                    maxX = math.max(maxX, screenPoint.X)
-                    maxY = math.max(maxY, screenPoint.Y)
-                end
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        local data = ESP_DATA[player]
+        if not State.espEnabled then
+            if data then
+                data.Box.Visible = false
+                data.Tracer.Visible = false
+                data.Name.Visible = false
+                data.Distance.Visible = false
+                data.HealthOutline.Visible = false
+                data.HealthBar.Visible = false
             end
+            continue
+        end
+        
+        if not data then
+            CreateESP(player)
+            data = ESP_DATA[player]
+        end
+        
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        
+        if character and hrp and humanoid and humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            
+            -- Team Check
+            local isTeam = false
+            if State.espTeamCheck then
+                if player.Team == LocalPlayer.Team then isTeam = true end
+            end
+            
+            -- Distance Check
+            local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
+            
+            if onScreen and not isTeam and dist <= State.espDistance then
+                -- Calculo dinâmico do tamanho baseado na distância
+                local scale = 1 / (pos.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
+                local sizeX, sizeY = math.floor(40 * scale), math.floor(60 * scale)
+                local boxPos = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2)
+                
+                -- BOX
+                if State.espBox then
+                    data.Box.Visible = true
+                    data.Box.Size = Vector2.new(sizeX, sizeY)
+                    data.Box.Position = boxPos
+                    data.Box.Color = State.espColor
+                else
+                    data.Box.Visible = false
+                end
+                
+                -- TRACER (LINE) - Ponto fixo centralizado no topo da tela
+                if State.espLine then
+                    data.Tracer.Visible = true
+                    data.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
+                    data.Tracer.To = Vector2.new(pos.X, pos.Y - sizeY / 2)
+                    data.Tracer.Color = State.espColor
+                    data.Tracer.Thickness = State.lineThickness
+                else
+                    data.Tracer.Visible = false
+                end
+                
+                -- NAME
+                data.Name.Visible = true
+                data.Name.Text = player.DisplayName or player.Name
+                data.Name.Position = Vector2.new(pos.X, pos.Y - sizeY / 2 - 18)
+                data.Name.Color = State.espColor
+                
+                -- DISTANCE
+                data.Distance.Visible = true
+                data.Distance.Text = "[" .. math.floor(dist) .. "m]"
+                data.Distance.Position = Vector2.new(pos.X, pos.Y + sizeY / 2 + 2)
+                data.Distance.Color = State.espColor
+                
+                -- HEALTH BAR
+                if State.espHealth then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local barHeight = sizeY
+                    local barWidth = 3
+                    
+                    data.HealthOutline.Visible = true
+                    data.HealthOutline.Size = Vector2.new(barWidth + 2, barHeight + 2)
+                    data.HealthOutline.Position = Vector2.new(boxPos.X - barWidth - 5, boxPos.Y - 1)
+                    data.HealthOutline.Color = Color3.new(0, 0, 0)
+                    
+                    data.HealthBar.Visible = true
+                    data.HealthBar.Size = Vector2.new(barWidth, barHeight * healthPercent)
+                    data.HealthBar.Position = Vector2.new(boxPos.X - barWidth - 4, boxPos.Y + barHeight * (1 - healthPercent))
+                    data.HealthBar.Color = Color3.fromHSV(healthPercent * 0.33, 1, 1)
+                else
+                    data.HealthOutline.Visible = false
+                    data.HealthBar.Visible = false
+                end
+            else
+                data.Box.Visible = false
+                data.Tracer.Visible = false
+                data.Name.Visible = false
+                data.Distance.Visible = false
+                data.HealthOutline.Visible = false
+                data.HealthBar.Visible = false
+            end
+        else
+            data.Box.Visible = false
+            data.Tracer.Visible = false
+            data.Name.Visible = false
+            data.Distance.Visible = false
+            data.HealthOutline.Visible = false
+            data.HealthBar.Visible = false
         end
     end
-
-    if projected == 0 then return nil end
-
-    local viewport = Camera.ViewportSize
-    if maxX < 0 or minX > viewport.X or maxY < 0 or minY > viewport.Y then
-        return nil
-    end
-
-    local width = math.max(maxX - minX, 8)
-    local height = math.max(maxY - minY, 12)
-    return minX, minY, width, height
 end
 
-local function UpdateESP(player, data)
-    HideESP(data)
-
-    if not State.espEnabled or not Camera then return end
-    if not (State.espBox or State.espLine or State.espHealth) then return end
-    if not player or player.Parent ~= Players then return end
-    if IsSameTeam(player) then return end
-
-    local character = player.Character
-    if not character then return end
-
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not humanoid or humanoid.Health <= 0 or not root then return end
-
-    local distance = (root.Position - Camera.CFrame.Position).Magnitude
-    if distance > State.espDistance then return end
-
-    local x, y, width, height = GetCharacterScreenBounds(character)
-    if not x then return end
-
-    local anyVisual = State.espBox or State.espLine or State.espHealth
-    data.container.Position = UDim2.fromOffset(x, y)
-    data.container.Size = UDim2.fromOffset(width, height)
-    data.container.Visible = anyVisual
-
-    data.boxVisual.Visible = State.espBox
-    data.boxVisual.BackgroundColor3 = State.espColor
-    data.boxStroke.Color = State.espColor
-    data.boxGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, State.espColor),
-        ColorSequenceKeypoint.new(1, State.espColor)
-    })
-
-    -- O nome acompanha qualquer recurso visual ativo, inclusive Line-only.
-    data.nameLabel.Text = string.format("%s  [%dm]", player.DisplayName, math.floor(distance))
-    data.nameLabel.TextColor3 = State.espColor
-    data.nameLabel.Visible = anyVisual
-
-    if State.espLine then
-        -- Ponto fixo: Centro Superior da Tela
-        local viewportSize = Camera.ViewportSize
-        local origin = Vector2.new(viewportSize.X / 2, 0)
-        
-        -- Destino: Centro Superior da Caixa (Box) do Player
-        local target = Vector2.new(x + (width / 2), y)
-        
-        local delta = target - origin
-        local distance = delta.Magnitude
-        local angle = math.atan2(delta.Y, delta.X)
-
-        data.lineFrame.Visible = true
-        data.lineFrame.Position = UDim2.fromOffset(origin.X, origin.Y)
-        data.lineFrame.Size = UDim2.fromOffset(distance, math.max(State.lineThickness, 1))
-        data.lineFrame.Rotation = math.deg(angle)
-        data.lineFrame.BackgroundColor3 = State.espColor
-        data.lineFrame.BackgroundTransparency = 0.4 -- Leve transparencia para nao poluir a visao
-    end
-
-    if State.espHealth then
-        local maxHealth = math.max(humanoid.MaxHealth, 1)
-        local hpPercent = math.clamp(humanoid.Health / maxHealth, 0, 1)
-        local hpColor = Color3.fromHSV(hpPercent * 0.33, 1, 1)
-
-        data.healthBg.Visible = true
-        data.healthFill.Size = UDim2.fromScale(1, hpPercent)
-        data.healthFill.BackgroundColor3 = hpColor
-        data.healthLabel.Text = string.format("%d HP", math.floor(humanoid.Health + 0.5))
-        data.healthLabel.TextColor3 = hpColor
-        data.healthLabel.Visible = true
-    end
-end
-
-for _, player in ipairs(Players:GetPlayers()) do
-    AddESP(player)
-end
-
-Players.PlayerAdded:Connect(AddESP)
+-- Limpeza ao sair
 Players.PlayerRemoving:Connect(RemoveESP)
 
-RunService.RenderStepped:Connect(function()
-    for player, data in pairs(espData) do
-        UpdateESP(player, data)
-    end
-end)
+-- Loop principal
+_G.MikasaESP_Connection = RunService.RenderStepped:Connect(UpdateESP)
 
 -- ============================================================
 -- TAB 4: CONFIG

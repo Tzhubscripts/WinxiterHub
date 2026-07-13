@@ -24,6 +24,11 @@ local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 
+-- Mantem a referencia correta caso o jogo substitua a camera atual.
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    Camera = Workspace.CurrentCamera
+end)
+
 local LocalPlayer = Players.LocalPlayer
 local LocalMouse = LocalPlayer:GetMouse()
 
@@ -1215,6 +1220,7 @@ for _, preset in ipairs(presets) do
 end
 
 CreateToggle(ESPTab.Frame, "Abrir Color Picker", false, function(s)
+    State.espColorPickerOpen = s
     if s then
         TweenMgr.Create(colorPickerFrame, {Size = UDim2.new(0.9, 0, 0, 120)})
         colorContainer.Size = UDim2.new(0.95, 0, 0, 50)
@@ -1226,16 +1232,35 @@ CreateToggle(ESPTab.Frame, "Abrir Color Picker", false, function(s)
 end)
 
 -- ============================================================
--- ESP ENGINE (100% funcional - Box com gradiente, Line, Health Bar)
+-- ESP ENGINE REFEITO
+-- Box, Line e Health independentes, com limpeza de estado e bounding box real.
 -- ============================================================
 
+local ESP_GUI_NAME = "MikasaHub_ESP"
+
+local function DestroyOldESPGui(parent)
+    if not parent then return end
+    pcall(function()
+        for _, child in ipairs(parent:GetChildren()) do
+            if child:IsA("ScreenGui") and string.sub(child.Name, 1, #ESP_GUI_NAME) == ESP_GUI_NAME then
+                child:Destroy()
+            end
+        end
+    end)
+end
+
+DestroyOldESPGui(CoreGui)
+DestroyOldESPGui(LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+
 local espScreenGui = Instance.new("ScreenGui")
-espScreenGui.Name = "MikasaHub_ESP_" .. tostring(math.random(1000, 9999))
+espScreenGui.Name = ESP_GUI_NAME
 espScreenGui.ResetOnSpawn = false
+espScreenGui.IgnoreGuiInset = true
 espScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+espScreenGui.DisplayOrder = 999
 espScreenGui.Enabled = true
 
-local okEsp, _ = pcall(function()
+local okEsp = pcall(function()
     espScreenGui.Parent = CoreGui
 end)
 if not okEsp then
@@ -1244,145 +1269,130 @@ end
 
 local espData = {}
 
+local function HideESP(data)
+    if not data then return end
+    if data.container then data.container.Visible = false end
+    if data.boxVisual then data.boxVisual.Visible = false end
+    if data.lineFrame then data.lineFrame.Visible = false end
+    if data.healthBg then data.healthBg.Visible = false end
+    if data.nameLabel then data.nameLabel.Visible = false end
+    if data.healthLabel then data.healthLabel.Visible = false end
+end
+
 local function AddESP(player)
-    if espData[player] then return end
+    if player == LocalPlayer or espData[player] then return end
 
-    -- Box Frame
-    local box = Instance.new("Frame")
-    box.Size = UDim2.new(0, 40, 0, 80)
-    box.BackgroundTransparency = 1
-    box.BorderSizePixel = 0
-    box.Visible = false
-    box.ZIndex = 5
-    box.Parent = espScreenGui
+    -- Contem os elementos presos ao retangulo do personagem. Sua visibilidade
+    -- nao depende apenas do ESP Box, permitindo que Health funcione sozinho.
+    local container = Instance.new("Frame")
+    container.Name = "ESP_" .. tostring(player.UserId)
+    container.BackgroundTransparency = 1
+    container.BorderSizePixel = 0
+    container.Visible = false
+    container.ZIndex = 20
+    container.Parent = espScreenGui
 
-    -- Box background
-    local boxBg = Instance.new("Frame")
-    boxBg.Size = UDim2.new(1, 0, 1, 0)
-    boxBg.BackgroundTransparency = 1
-    boxBg.BorderSizePixel = 0
-    boxBg.ZIndex = 6
-    boxBg.Parent = box
+    local boxVisual = Instance.new("Frame")
+    boxVisual.Name = "Box"
+    boxVisual.Size = UDim2.fromScale(1, 1)
+    boxVisual.BackgroundColor3 = State.espColor
+    boxVisual.BackgroundTransparency = 0.9
+    boxVisual.BorderSizePixel = 0
+    boxVisual.Visible = false
+    boxVisual.ZIndex = 21
+    boxVisual.Parent = container
 
-    -- Top stroke (forte, no topo)
-    local topStroke = Instance.new("Frame")
-    topStroke.Size = UDim2.new(1, 0, 0, 2)
-    topStroke.Position = UDim2.new(0, 0, 0, 0)
-    topStroke.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    topStroke.BackgroundTransparency = 0
-    topStroke.BorderSizePixel = 0
-    topStroke.ZIndex = 7
-    topStroke.Parent = boxBg
-
-    -- Bottom stroke (gradiente transparente subindo)
-    local botStroke = Instance.new("Frame")
-    botStroke.Size = UDim2.new(1, 0, 0, 40)
-    botStroke.Position = UDim2.new(0, 0, 1, -40)
-    botStroke.BorderSizePixel = 0
-    botStroke.ZIndex = 6
-    botStroke.Parent = boxBg
-
-    local grad = Instance.new("UIGradient")
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    local boxGradient = Instance.new("UIGradient")
+    boxGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, State.espColor),
+        ColorSequenceKeypoint.new(1, State.espColor)
     })
-    grad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0), -- Solido na base (0)
-        NumberSequenceKeypoint.new(1, 1)  -- Transparente no topo (1)
+    boxGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.78),
+        NumberSequenceKeypoint.new(0.55, 0.93),
+        NumberSequenceKeypoint.new(1, 1)
     })
-    grad.Rotation = -90 -- Invertido para o solido ficar na base do botStroke
-    grad.Parent = botStroke
+    boxGradient.Rotation = 90
+    boxGradient.Parent = boxVisual
 
-    -- Side lines
-    local leftLine = Instance.new("Frame")
-    leftLine.Size = UDim2.new(0, 1, 1, 0)
-    leftLine.Position = UDim2.new(0, 0, 0, 0)
-    leftLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    leftLine.BackgroundTransparency = 0
-    leftLine.BorderSizePixel = 0
-    leftLine.ZIndex = 7
-    leftLine.Parent = boxBg
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    boxStroke.Color = State.espColor
+    boxStroke.Thickness = 1.5
+    boxStroke.Transparency = 0.05
+    boxStroke.Parent = boxVisual
 
-    local rightLine = Instance.new("Frame")
-    rightLine.Size = UDim2.new(0, 1, 1, 0)
-    rightLine.Position = UDim2.new(1, -1, 0, 0)
-    rightLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    rightLine.BackgroundTransparency = 0
-    rightLine.BorderSizePixel = 0
-    rightLine.ZIndex = 7
-    rightLine.Parent = boxBg
-
-    -- Line (tracer) - Top Center Origin
+    -- Tracer independente do box.
     local line = Instance.new("Frame")
-    line.Size = UDim2.new(0, 2, 0, 0)
-    line.Position = UDim2.new(0.5, 0, 0, 0) -- Origem fixa: Centro Superior
-    line.AnchorPoint = Vector2.new(0.5, 0)
-    line.BackgroundTransparency = 1
+    line.Name = "Tracer"
+    line.AnchorPoint = Vector2.new(0, 0.5)
+    line.BackgroundColor3 = State.espColor
+    line.BackgroundTransparency = 0.15
     line.BorderSizePixel = 0
     line.Visible = false
-    line.ZIndex = 4
+    line.ZIndex = 19
     line.Parent = espScreenGui
 
-    -- Health Bar (vertical, left of box)
+    -- Barra de vida presa ao lado esquerdo do bounding box.
     local healthBg = Instance.new("Frame")
-    healthBg.Size = UDim2.new(0, 5, 0, 80)
-    healthBg.Position = UDim2.new(0, -8, 0, 0)
-    healthBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    healthBg.Name = "HealthBackground"
+    healthBg.Size = UDim2.new(0, 5, 1, 0)
+    healthBg.Position = UDim2.new(0, -9, 0, 0)
+    healthBg.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+    healthBg.BackgroundTransparency = 0.15
     healthBg.BorderSizePixel = 0
+    healthBg.ClipsDescendants = true
     healthBg.Visible = false
-    healthBg.ZIndex = 6
-    healthBg.Parent = box
+    healthBg.ZIndex = 22
+    healthBg.Parent = container
 
     local healthFill = Instance.new("Frame")
-    healthFill.Size = UDim2.new(1, 0, 1, 0)
-    healthFill.Position = UDim2.new(0, 0, 0, 0)
+    healthFill.Name = "HealthFill"
+    healthFill.AnchorPoint = Vector2.new(0, 1)
+    healthFill.Position = UDim2.fromScale(0, 1)
+    healthFill.Size = UDim2.fromScale(1, 1)
     healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
     healthFill.BorderSizePixel = 0
-    healthFill.AnchorPoint = Vector2.new(0, 1)
+    healthFill.ZIndex = 23
     healthFill.Parent = healthBg
 
-    local healthGrad = Instance.new("UIGradient")
-    healthGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-    })
-    healthGrad.Rotation = 90
-    healthGrad.Parent = healthFill
-
-    -- Name label
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0, 120, 0, 16)
-    nameLabel.Position = UDim2.new(0.5, -60, 0, -18)
-    nameLabel.AnchorPoint = Vector2.new(0.5, 0)
+    nameLabel.Name = "Name"
+    nameLabel.AnchorPoint = Vector2.new(0.5, 1)
+    nameLabel.Size = UDim2.new(0, 180, 0, 18)
+    nameLabel.Position = UDim2.new(0.5, 0, 0, -4)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = player.DisplayName
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.Font = Theme.Font
-    nameLabel.TextSize = 11
+    nameLabel.TextColor3 = State.espColor
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.TextStrokeTransparency = 0.25
+    nameLabel.Font = Theme.FontBold
+    nameLabel.TextSize = 12
     nameLabel.Visible = false
-    nameLabel.ZIndex = 7
-    nameLabel.Parent = box
+    nameLabel.ZIndex = 24
+    nameLabel.Parent = container
 
-    -- Health text
     local healthLabel = Instance.new("TextLabel")
-    healthLabel.Size = UDim2.new(0, 100, 0, 14)
-    healthLabel.Position = UDim2.new(0.5, -50, 1, 2)
+    healthLabel.Name = "HealthText"
     healthLabel.AnchorPoint = Vector2.new(0.5, 0)
+    healthLabel.Size = UDim2.new(0, 100, 0, 16)
+    healthLabel.Position = UDim2.new(0.5, 0, 1, 3)
     healthLabel.BackgroundTransparency = 1
-    healthLabel.Text = "100"
+    healthLabel.Text = "100 HP"
     healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-    healthLabel.Font = Theme.Font
-    healthLabel.TextSize = 10
+    healthLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    healthLabel.TextStrokeTransparency = 0.25
+    healthLabel.Font = Theme.FontBold
+    healthLabel.TextSize = 11
     healthLabel.Visible = false
-    healthLabel.ZIndex = 7
-    healthLabel.Parent = box
+    healthLabel.ZIndex = 24
+    healthLabel.Parent = container
 
     espData[player] = {
-        boxFrame = box,
-        boxGradient = grad,
-        boxStroke = botStroke,
+        container = container,
+        boxVisual = boxVisual,
+        boxGradient = boxGradient,
+        boxStroke = boxStroke,
         lineFrame = line,
         healthBg = healthBg,
         healthFill = healthFill,
@@ -1392,152 +1402,143 @@ local function AddESP(player)
 end
 
 local function RemoveESP(player)
-    if espData[player] then
-        local data = espData[player]
-        if data.boxFrame then data.boxFrame:Destroy() end
-        if data.lineFrame then data.lineFrame:Destroy() end
-        espData[player] = nil
-    end
+    local data = espData[player]
+    if not data then return end
+
+    if data.container then data.container:Destroy() end
+    if data.lineFrame then data.lineFrame:Destroy() end
+    espData[player] = nil
 end
 
--- Add existing players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        AddESP(player)
-    end
+local function IsSameTeam(player)
+    if not State.espTeamCheck then return false end
+    if LocalPlayer.Neutral or player.Neutral then return false end
+    if LocalPlayer.Team == nil or player.Team == nil then return false end
+    return LocalPlayer.Team == player.Team
 end
 
--- New players
-Players.PlayerAdded:Connect(function(player)
-    task.delay(1, function()
-        AddESP(player)
+local function GetCharacterScreenBounds(character)
+    if not Camera then return nil end
+
+    local ok, boundsCFrame, boundsSize = pcall(function()
+        local cf, size = character:GetBoundingBox()
+        return cf, size
     end)
-end)
+    if not ok or not boundsCFrame or not boundsSize then return nil end
 
--- Leaving players
-Players.PlayerRemoving:Connect(function(player)
-    RemoveESP(player)
-end)
+    local half = boundsSize * 0.5
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    local projected = 0
 
--- ESP Main Loop
-RunService.RenderStepped:Connect(function()
-    if not State.espEnabled then
-        for _, data in pairs(espData) do
-            if data.boxFrame then data.boxFrame.Visible = false end
-            if data.lineFrame then data.lineFrame.Visible = false end
-            if data.healthBg then data.healthBg.Visible = false end
-            if data.nameLabel then data.nameLabel.Visible = false end
-            if data.healthLabel then data.healthLabel.Visible = false end
+    for x = -1, 1, 2 do
+        for y = -1, 1, 2 do
+            for z = -1, 1, 2 do
+                local worldPoint = boundsCFrame:PointToWorldSpace(Vector3.new(
+                    half.X * x,
+                    half.Y * y,
+                    half.Z * z
+                ))
+                local screenPoint = Camera:WorldToViewportPoint(worldPoint)
+                if screenPoint.Z > 0 then
+                    projected = projected + 1
+                    minX = math.min(minX, screenPoint.X)
+                    minY = math.min(minY, screenPoint.Y)
+                    maxX = math.max(maxX, screenPoint.X)
+                    maxY = math.max(maxY, screenPoint.Y)
+                end
+            end
         end
-        return
     end
 
+    if projected == 0 then return nil end
+
+    local viewport = Camera.ViewportSize
+    if maxX < 0 or minX > viewport.X or maxY < 0 or minY > viewport.Y then
+        return nil
+    end
+
+    local width = math.max(maxX - minX, 8)
+    local height = math.max(maxY - minY, 12)
+    return minX, minY, width, height
+end
+
+local function UpdateESP(player, data)
+    HideESP(data)
+
+    if not State.espEnabled or not Camera then return end
+    if not (State.espBox or State.espLine or State.espHealth) then return end
+    if not player or player.Parent ~= Players then return end
+    if IsSameTeam(player) then return end
+
+    local character = player.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or humanoid.Health <= 0 or not root then return end
+
+    local distance = (root.Position - Camera.CFrame.Position).Magnitude
+    if distance > State.espDistance then return end
+
+    local x, y, width, height = GetCharacterScreenBounds(character)
+    if not x then return end
+
+    local anyVisual = State.espBox or State.espLine or State.espHealth
+    data.container.Position = UDim2.fromOffset(x, y)
+    data.container.Size = UDim2.fromOffset(width, height)
+    data.container.Visible = anyVisual
+
+    data.boxVisual.Visible = State.espBox
+    data.boxVisual.BackgroundColor3 = State.espColor
+    data.boxStroke.Color = State.espColor
+    data.boxGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, State.espColor),
+        ColorSequenceKeypoint.new(1, State.espColor)
+    })
+
+    -- O nome acompanha qualquer recurso visual ativo, inclusive Line-only.
+    data.nameLabel.Text = string.format("%s  [%dm]", player.DisplayName, math.floor(distance))
+    data.nameLabel.TextColor3 = State.espColor
+    data.nameLabel.Visible = anyVisual
+
+    if State.espLine then
+        local origin = Vector2.new(Camera.ViewportSize.X * 0.5, 0)
+        local target = Vector2.new(x + width * 0.5, y)
+        local delta = target - origin
+        local lineLength = delta.Magnitude
+
+        data.lineFrame.Position = UDim2.fromOffset(origin.X, origin.Y)
+        data.lineFrame.Size = UDim2.fromOffset(lineLength, math.max(State.lineThickness, 1))
+        data.lineFrame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+        data.lineFrame.BackgroundColor3 = State.espColor
+        data.lineFrame.Visible = true
+    end
+
+    if State.espHealth then
+        local maxHealth = math.max(humanoid.MaxHealth, 1)
+        local hpPercent = math.clamp(humanoid.Health / maxHealth, 0, 1)
+        local hpColor = Color3.fromHSV(hpPercent * 0.33, 1, 1)
+
+        data.healthBg.Visible = true
+        data.healthFill.Size = UDim2.fromScale(1, hpPercent)
+        data.healthFill.BackgroundColor3 = hpColor
+        data.healthLabel.Text = string.format("%d HP", math.floor(humanoid.Health + 0.5))
+        data.healthLabel.TextColor3 = hpColor
+        data.healthLabel.Visible = true
+    end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    AddESP(player)
+end
+
+Players.PlayerAdded:Connect(AddESP)
+Players.PlayerRemoving:Connect(RemoveESP)
+
+RunService.RenderStepped:Connect(function()
     for player, data in pairs(espData) do
-        if not player.Character then continue end
-
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then continue end
-
-        if State.espTeamCheck and player.Team == LocalPlayer.Team then continue end
-
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then continue end
-
-        local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
-        if dist > State.espDistance then continue end
-
-        local screenPos, visible = Camera:WorldToViewportPoint(hrp.Position)
-        if not visible then
-            if data.boxFrame then data.boxFrame.Visible = false end
-            if data.lineFrame then data.lineFrame.Visible = false end
-            if data.healthBg then data.healthBg.Visible = false end
-            if data.nameLabel then data.nameLabel.Visible = false end
-            if data.healthLabel then data.healthLabel.Visible = false end
-            continue
-        end
-
-        -- Calculo do ESP Vertical (Alinhado com a base/pes)
-        local topPos, topVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3.2, 0))
-        local bottomPos, botVisible = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0, -3.2, 0))
-        
-        local boxH = math.abs(topPos.Y - bottomPos.Y)
-        local boxW = boxH * 0.8 -- Largura um pouco maior para cobrir o boneco
-        local boxX = screenPos.X
-        local boxY = topPos.Y
-
-        if boxH < 10 then boxH = 20 end
-        if boxW < 10 then boxW = 15 end
-
-        -- BOX
-        if State.espBox and data.boxFrame then
-            data.boxFrame.Size = UDim2.new(0, boxW, 0, boxH)
-            data.boxFrame.Position = UDim2.new(0, boxX - boxW / 2, 0, boxY)
-            data.boxFrame.Visible = true
-        else
-            data.boxFrame.Visible = false
-        end
-
-        -- BOX COLOR
-        if data.boxStroke then
-            data.boxStroke.BackgroundColor3 = State.espColor
-        end
-        if data.boxGradient then
-            data.boxGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, State.espColor),
-                ColorSequenceKeypoint.new(1, State.espColor)
-            })
-        end
-
-        -- LINE (Tracer Top-Down: do centro do topo ate a cabeça)
-        if State.espLine and data.lineFrame then
-            data.lineFrame.Visible = true
-            local origin = Vector2.new(Camera.ViewportSize.X / 2, 0)
-            local target = Vector2.new(boxX, boxY)
-            local distance = (target - origin).Magnitude
-            local angle = math.deg(math.atan2(target.Y - origin.Y, target.X - origin.X))
-
-            data.lineFrame.Position = UDim2.new(0, origin.X, 0, origin.Y)
-            data.lineFrame.Size = UDim2.new(0, distance, 0, State.lineThickness)
-            data.lineFrame.Rotation = angle
-            data.lineFrame.AnchorPoint = Vector2.new(0, 0.5)
-            data.lineFrame.BackgroundColor3 = State.espColor
-            data.lineFrame.BackgroundTransparency = 0.3
-        else
-            data.lineFrame.Visible = false
-        end
-
-        -- HEALTH BAR
-        if State.espHealth and data.healthBg and data.healthFill then
-            data.healthBg.Size = UDim2.new(0, 5, 0, boxH)
-            data.healthBg.Position = UDim2.new(0, -8, 0, 0)
-            data.healthBg.Visible = true
-
-            local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-            data.healthFill.Size = UDim2.new(1, 0, hpPercent, 0)
-
-            if hpPercent > 0.5 then
-                data.healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            elseif hpPercent > 0.25 then
-                data.healthFill.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-            else
-                data.healthFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            end
-        else
-            data.healthBg.Visible = false
-        end
-
-        -- NAME
-        if data.nameLabel then
-            data.nameLabel.Text = player.DisplayName
-            data.nameLabel.TextColor3 = State.espColor
-            data.nameLabel.Visible = State.espBox or State.espLine or State.espHealth
-        end
-
-        -- HEALTH TEXT
-        if data.healthLabel then
-            data.healthLabel.Text = tostring(math.floor(humanoid.Health))
-            data.healthLabel.Visible = State.espHealth
-        end
+        UpdateESP(player, data)
     end
 end)
 

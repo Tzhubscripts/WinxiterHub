@@ -1503,16 +1503,23 @@ local function UpdateESP(player, data)
     data.nameLabel.Visible = anyVisual
 
     if State.espLine then
-        local origin = Vector2.new(Camera.ViewportSize.X * 0.5, 0)
-        local target = Vector2.new(x + width * 0.5, y)
+        -- Ponto fixo: Centro Superior da Tela
+        local viewportSize = Camera.ViewportSize
+        local origin = Vector2.new(viewportSize.X / 2, 0)
+        
+        -- Destino: Centro Superior da Caixa (Box) do Player
+        local target = Vector2.new(x + (width / 2), y)
+        
         local delta = target - origin
-        local lineLength = delta.Magnitude
+        local distance = delta.Magnitude
+        local angle = math.atan2(delta.Y, delta.X)
 
-        data.lineFrame.Position = UDim2.fromOffset(origin.X, origin.Y)
-        data.lineFrame.Size = UDim2.fromOffset(lineLength, math.max(State.lineThickness, 1))
-        data.lineFrame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-        data.lineFrame.BackgroundColor3 = State.espColor
         data.lineFrame.Visible = true
+        data.lineFrame.Position = UDim2.fromOffset(origin.X, origin.Y)
+        data.lineFrame.Size = UDim2.fromOffset(distance, math.max(State.lineThickness, 1))
+        data.lineFrame.Rotation = math.deg(angle)
+        data.lineFrame.BackgroundColor3 = State.espColor
+        data.lineFrame.BackgroundTransparency = 0.4 -- Leve transparencia para nao poluir a visao
     end
 
     if State.espHealth then

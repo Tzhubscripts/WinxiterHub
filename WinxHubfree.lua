@@ -1337,59 +1337,59 @@ local function UpdateESP()
             local dist = (hrp.Position - Camera.CFrame.Position).Magnitude
             
             if onScreen and not isTeam and dist <= State.espDistance then
-                -- Calculo dinâmico do tamanho baseado na distância
-                local scale = 1 / (pos.Z * math.tan(math.rad(Camera.FieldOfView * 0.5)) * 2) * 100
-                local sizeX, sizeY = math.floor(40 * scale), math.floor(60 * scale)
-                local boxPos = Vector2.new(pos.X - sizeX / 2, pos.Y - sizeY / 2)
+                -- Calculo do tamanho da Box
+                local height = (Camera.ViewportSize.Y / pos.Z) * 2
+                local width = height / 1.5
+                local boxPos = Vector2.new(pos.X - width / 2, pos.Y - height / 2)
                 
                 -- BOX
                 if State.espBox then
-                    data.Box.Visible = true
-                    data.Box.Size = Vector2.new(sizeX, sizeY)
+                    data.Box.Size = Vector2.new(width, height)
                     data.Box.Position = boxPos
                     data.Box.Color = State.espColor
+                    data.Box.Visible = true
                 else
                     data.Box.Visible = false
                 end
                 
                 -- TRACER (LINE) - Ponto fixo centralizado no topo da tela
                 if State.espLine then
-                    data.Tracer.Visible = true
                     data.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
-                    data.Tracer.To = Vector2.new(pos.X, pos.Y - sizeY / 2)
+                    data.Tracer.To = Vector2.new(pos.X, pos.Y - height / 2)
                     data.Tracer.Color = State.espColor
                     data.Tracer.Thickness = State.lineThickness
+                    data.Tracer.Visible = true
                 else
                     data.Tracer.Visible = false
                 end
                 
                 -- NAME
-                data.Name.Visible = true
                 data.Name.Text = player.DisplayName or player.Name
-                data.Name.Position = Vector2.new(pos.X, pos.Y - sizeY / 2 - 18)
+                data.Name.Position = Vector2.new(pos.X, pos.Y - height / 2 - 18)
                 data.Name.Color = State.espColor
+                data.Name.Visible = true
                 
                 -- DISTANCE
-                data.Distance.Visible = true
                 data.Distance.Text = "[" .. math.floor(dist) .. "m]"
-                data.Distance.Position = Vector2.new(pos.X, pos.Y + sizeY / 2 + 2)
+                data.Distance.Position = Vector2.new(pos.X, pos.Y + height / 2 + 2)
                 data.Distance.Color = State.espColor
+                data.Distance.Visible = true
                 
                 -- HEALTH BAR
                 if State.espHealth then
                     local healthPercent = humanoid.Health / humanoid.MaxHealth
-                    local barHeight = sizeY
+                    local barHeight = height
                     local barWidth = 3
                     
-                    data.HealthOutline.Visible = true
                     data.HealthOutline.Size = Vector2.new(barWidth + 2, barHeight + 2)
                     data.HealthOutline.Position = Vector2.new(boxPos.X - barWidth - 5, boxPos.Y - 1)
                     data.HealthOutline.Color = Color3.new(0, 0, 0)
+                    data.HealthOutline.Visible = true
                     
-                    data.HealthBar.Visible = true
                     data.HealthBar.Size = Vector2.new(barWidth, barHeight * healthPercent)
                     data.HealthBar.Position = Vector2.new(boxPos.X - barWidth - 4, boxPos.Y + barHeight * (1 - healthPercent))
                     data.HealthBar.Color = Color3.fromHSV(healthPercent * 0.33, 1, 1)
+                    data.HealthBar.Visible = true
                 else
                     data.HealthOutline.Visible = false
                     data.HealthBar.Visible = false

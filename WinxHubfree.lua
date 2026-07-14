@@ -1,5 +1,5 @@
 --[[
-    MIKASA HUB - Focused Edition
+    FLUORITE HUB - Focused Edition
     Tabs: Home | Aimbot | ESP | Config
 
     Everything 100% functional:
@@ -451,7 +451,7 @@ UILib.__index = UILib
 
 function UILib.new(opts)
     local self = setmetatable({}, UILib)
-    self.Title = opts.Title or "MIKASA HUB"
+    self.Title = opts.Title or "FLUORITE HUB"
     self.SubTitle = opts.SubTitle or "Focused Edition"
     self.Tabs = {}
     self.ActiveTab = nil
@@ -662,9 +662,99 @@ function UILib.new(opts)
     local cbCorner = Instance.new("UICorner")
     cbCorner.CornerRadius = UDim.new(0, 4)
     cbCorner.Parent = cb
+    
+    local function CreateParticles(parent)
+        local container = Instance.new("Frame")
+        container.Size = UDim2.fromScale(1, 1)
+        container.BackgroundTransparency = 1
+        container.ClipsDescendants = true
+        container.Parent = parent
+        local particles = {}
+        for i = 1, 25 do
+            local p = Instance.new("Frame")
+            p.Size = UDim2.fromOffset(math.random(2, 4), math.random(2, 4))
+            p.BackgroundColor3 = Theme.Accent
+            p.BackgroundTransparency = math.random(3, 6) / 10
+            p.Position = UDim2.fromScale(math.random(), math.random())
+            p.BorderSizePixel = 0
+            p.Parent = container
+            Instance.new("UICorner", p).CornerRadius = UDim.new(1, 0)
+            table.insert(particles, {inst = p, vel = Vector2.new(math.random(-35, 35) / 1000, math.random(-35, 35) / 1000)})
+        end
+        local conn; conn = RunService.RenderStepped:Connect(function()
+            if not container.Parent then conn:Disconnect() return end
+            for _, p in ipairs(particles) do
+                local nX = p.inst.Position.X.Scale + p.vel.X
+                local nY = p.inst.Position.Y.Scale + p.vel.Y
+                if nX > 1 then nX = 0 elseif nX < 0 then nX = 1 end
+                if nY > 1 then nY = 0 elseif nY < 0 then nY = 1 end
+                p.inst.Position = UDim2.fromScale(nX, nY)
+            end
+        end)
+    end
+
     cb.MouseButton1Click:Connect(function()
-        self:ToggleVisibility()
-        Notify("Aviso", "Pressione o botao flutuante M para abrir.", 3)
+        local Overlay = Instance.new("TextButton")
+        Overlay.Size = UDim2.fromScale(1, 1)
+        Overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+        Overlay.BackgroundTransparency = 1
+        Overlay.Text = ""
+        Overlay.AutoButtonColor = false
+        Overlay.ZIndex = 100
+        Overlay.Parent = self.ScreenGui
+        
+        local Menu = Instance.new("Frame")
+        Menu.Size = UDim2.fromOffset(280, 140)
+        Menu.Position = UDim2.fromScale(0.5, 0.5)
+        Menu.AnchorPoint = Vector2.new(0.5, 0.5)
+        Menu.BackgroundColor3 = Theme.Section
+        Menu.BorderSizePixel = 0
+        Menu.ClipsDescendants = true
+        Menu.Parent = Overlay
+        Instance.new("UICorner", Menu).CornerRadius = Theme.CornerRadius
+        local MenuStroke = Instance.new("UIStroke", Menu)
+        MenuStroke.Color = Theme.Accent
+        MenuStroke.Thickness = 1.5
+
+        CreateParticles(Menu)
+
+        local MenuTitle = Instance.new("TextLabel")
+        MenuTitle.Size = UDim2.new(1, 0, 0, 60)
+        MenuTitle.BackgroundTransparency = 1
+        MenuTitle.Text = "Fechar totalmente o painel?"
+        MenuTitle.TextColor3 = Theme.TextPrimary
+        MenuTitle.Font = Theme.FontBold
+        MenuTitle.TextSize = 14
+        MenuTitle.ZIndex = 102
+        MenuTitle.Parent = Menu
+
+        local Confirm = Instance.new("TextButton")
+        Confirm.Size = UDim2.new(0, 90, 0, 32)
+        Confirm.Position = UDim2.new(0.5, -100, 0.7, 0)
+        Confirm.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        Confirm.Text = "Confirm"
+        Confirm.TextColor3 = Color3.new(1, 1, 1)
+        Confirm.Font = Theme.FontBold
+        Confirm.TextSize = 13
+        Confirm.ZIndex = 102
+        Confirm.Parent = Menu
+        Instance.new("UICorner", Confirm).CornerRadius = UDim.new(0, 6)
+
+        local Cancel = Instance.new("TextButton")
+        Cancel.Size = UDim2.new(0, 90, 0, 32)
+        Cancel.Position = UDim2.new(0.5, 10, 0.7, 0)
+        Cancel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        Cancel.Text = "Cancel"
+        Cancel.TextColor3 = Color3.new(1, 1, 1)
+        Cancel.Font = Theme.FontBold
+        Cancel.TextSize = 13
+        Cancel.ZIndex = 102
+        Cancel.Parent = Menu
+        Instance.new("UICorner", Cancel).CornerRadius = UDim.new(0, 6)
+
+        TweenMgr.Create(Overlay, {BackgroundTransparency = 0.5})
+        Confirm.MouseButton1Click:Connect(function() self.ScreenGui:Destroy() end)
+        Cancel.MouseButton1Click:Connect(function() Overlay:Destroy() end)
     end)
     TweenMgr.Hover(cb, {BackgroundColor3 = Color3.fromRGB(255, 0, 0)}, {BackgroundColor3 = Color3.fromRGB(200, 0, 0)})
 
@@ -1236,12 +1326,12 @@ end)
 -- Baseado na logica de componentes Drawing para maior performance e precisao.
 -- ============================================================
 
-local ESP_DATA = _G.MikasaESP_Data or {}
-_G.MikasaESP_Data = ESP_DATA
+local ESP_DATA = _G.FluoriteESP_Data or {}
+_G.FluoriteESP_Data = ESP_DATA
 
 -- Limpa desenhos antigos se o script for reexecutado
-if _G.MikasaESP_Connection then
-    _G.MikasaESP_Connection:Disconnect()
+if _G.FluoriteESP_Connection then
+    _G.FluoriteESP_Connection:Disconnect()
 end
 
 local function RemoveESP(player)
@@ -1417,7 +1507,7 @@ end
 Players.PlayerRemoving:Connect(RemoveESP)
 
 -- Loop principal
-_G.MikasaESP_Connection = RunService.RenderStepped:Connect(UpdateESP)
+_G.FluoriteESP_Connection = RunService.RenderStepped:Connect(UpdateESP)
 
 -- ============================================================
 -- TAB 4: CONFIG

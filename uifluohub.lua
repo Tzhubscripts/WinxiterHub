@@ -1,7 +1,6 @@
--- [[ FLOURITE UI LIBRARY - FULL VERSION ]]
--- A professional, clean UI Library for Roblox scripts.
--- Features: Tabs, Toggles, Sliders, Buttons, Color Pickers, Sections, Labels, Notifications.
--- Special: Close Confirmation Menu with Animated Particle System.
+-- [[ MIKASA HUB - OFFICIAL LIBRARY ]]
+-- Extracted from the original design for professional use.
+-- Features: Animated Confirmation Close Menu, Particle System, and Original UI Components.
 
 local Library = {}
 local Players = game:GetService("Players")
@@ -9,10 +8,11 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Theme Configuration
+-- Original Theme
 local Theme = {
     Background = Color3.fromRGB(10, 15, 25),
     Sidebar = Color3.fromRGB(15, 22, 38),
@@ -26,12 +26,32 @@ local Theme = {
     FontBold = Enum.Font.GothamBold,
 }
 
--- Utility Functions
-local function Tween(inst, props, dur)
-    TweenService:Create(inst, TweenInfo.new(dur or 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+-- Original Tween Manager
+local TweenMgr = {}
+local DEFAULT_TI = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+function TweenMgr.Create(inst, props, ti)
+    local t = TweenService:Create(inst, ti or DEFAULT_TI, props)
+    t:Play()
+    return t
 end
 
--- Particle System
+function TweenMgr.Ripple(inst, color)
+    inst.MouseButton1Click:Connect(function()
+        local r = Instance.new("Frame")
+        r.BackgroundColor3 = color or Color3.new(1, 1, 1)
+        r.BackgroundTransparency = 0.6
+        r.AnchorPoint = Vector2.new(0.5, 0.5)
+        r.Position = UDim2.new(0.5, 0, 0.5, 0)
+        r.Size = UDim2.new(0, 0, 0, 0)
+        r.Parent = inst
+        Instance.new("UICorner", r).CornerRadius = UDim.new(1, 0)
+        TweenMgr.Create(r, {Size = UDim2.new(1.5, 0, 1.5, 0), BackgroundTransparency = 1}, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+        task.delay(0.6, function() r:Destroy() end)
+    end)
+end
+
+-- Particle System for Confirmation Menu
 local function CreateParticles(parent)
     local container = Instance.new("Frame")
     container.Size = UDim2.fromScale(1, 1)
@@ -40,7 +60,7 @@ local function CreateParticles(parent)
     container.Parent = parent
 
     local particles = {}
-    for i = 1, 30 do
+    for i = 1, 25 do
         local p = Instance.new("Frame")
         p.Size = UDim2.fromOffset(math.random(2, 4), math.random(2, 4))
         p.BackgroundColor3 = Theme.Accent
@@ -49,7 +69,7 @@ local function CreateParticles(parent)
         p.BorderSizePixel = 0
         p.Parent = container
         Instance.new("UICorner", p).CornerRadius = UDim.new(1, 0)
-        table.insert(particles, {inst = p, vel = Vector2.new(math.random(-40, 40) / 1000, math.random(-40, 40) / 1000)})
+        table.insert(particles, {inst = p, vel = Vector2.new(math.random(-30, 30) / 1000, math.random(-30, 30) / 1000)})
     end
 
     local conn; conn = RunService.RenderStepped:Connect(function()
@@ -66,7 +86,7 @@ end
 
 function Library:CreateWindow(title)
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "FlouriteLib_" .. math.random(100, 999)
+    ScreenGui.Name = "MikasaLibrary_" .. math.random(100, 999)
     ScreenGui.ResetOnSpawn = false
     
     local success, _ = pcall(function() ScreenGui.Parent = CoreGui end)
@@ -82,7 +102,7 @@ function Library:CreateWindow(title)
     Instance.new("UICorner", MainFrame).CornerRadius = Theme.CornerRadius
 
     local Sidebar = Instance.new("Frame")
-    Sidebar.Size = UDim2.new(0, 160, 1, 0)
+    Sidebar.Size = UDim2.new(0, 140, 1, 0)
     Sidebar.BackgroundColor3 = Theme.Sidebar
     Sidebar.BorderSizePixel = 0
     Sidebar.Parent = MainFrame
@@ -103,25 +123,27 @@ function Library:CreateWindow(title)
     TabContainer.BackgroundTransparency = 1
     TabContainer.ScrollBarThickness = 0
     TabContainer.Parent = Sidebar
-    Instance.new("UIListLayout", TabContainer).Padding = UDim.new(0, 5)
-    TabContainer.UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    local TabList = Instance.new("UIListLayout", TabContainer)
+    TabList.Padding = UDim.new(0, 5)
+    TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
     local ContentArea = Instance.new("Frame")
-    ContentArea.Size = UDim2.new(1, -170, 1, -10)
-    ContentArea.Position = UDim2.new(0, 165, 0, 5)
+    ContentArea.Size = UDim2.new(1, -140, 1, 0)
+    ContentArea.Position = UDim2.new(0, 140, 0, 0)
     ContentArea.BackgroundTransparency = 1
     ContentArea.Parent = MainFrame
 
-    -- Close Button with Confirmation
+    -- Close Button with Original Visual + Confirmation
     local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-    CloseBtn.Position = UDim2.new(1, -35, 0, 5)
-    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Size = UDim2.new(0, 20, 0, 20)
+    CloseBtn.Position = UDim2.new(1, -25, 0, 5)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     CloseBtn.Text = "X"
-    CloseBtn.TextColor3 = Color3.fromRGB(200, 50, 50)
+    CloseBtn.TextColor3 = Theme.TextPrimary
     CloseBtn.Font = Theme.FontBold
-    CloseBtn.TextSize = 18
+    CloseBtn.TextSize = 12
     CloseBtn.Parent = MainFrame
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
 
     CloseBtn.MouseButton1Click:Connect(function()
         local Overlay = Instance.new("TextButton")
@@ -142,7 +164,9 @@ function Library:CreateWindow(title)
         Menu.ClipsDescendants = true
         Menu.Parent = Overlay
         Instance.new("UICorner", Menu).CornerRadius = Theme.CornerRadius
-        Instance.new("UIStroke", Menu).Color = Theme.Accent
+        local MenuStroke = Instance.new("UIStroke", Menu)
+        MenuStroke.Color = Theme.Accent
+        MenuStroke.Thickness = 1.5
 
         CreateParticles(Menu)
 
@@ -159,7 +183,7 @@ function Library:CreateWindow(title)
         local Confirm = Instance.new("TextButton")
         Confirm.Size = UDim2.new(0, 90, 0, 32)
         Confirm.Position = UDim2.new(0.5, -100, 0.7, 0)
-        Confirm.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        Confirm.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
         Confirm.Text = "Confirm"
         Confirm.TextColor3 = Color3.new(1, 1, 1)
         Confirm.Font = Theme.FontBold
@@ -171,7 +195,7 @@ function Library:CreateWindow(title)
         local Cancel = Instance.new("TextButton")
         Cancel.Size = UDim2.new(0, 90, 0, 32)
         Cancel.Position = UDim2.new(0.5, 10, 0.7, 0)
-        Cancel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        Cancel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         Cancel.Text = "Cancel"
         Cancel.TextColor3 = Color3.new(1, 1, 1)
         Cancel.Font = Theme.FontBold
@@ -180,7 +204,7 @@ function Library:CreateWindow(title)
         Cancel.Parent = Menu
         Instance.new("UICorner", Cancel).CornerRadius = UDim.new(0, 6)
 
-        Tween(Overlay, {BackgroundTransparency = 0.5})
+        TweenMgr.Create(Overlay, {BackgroundTransparency = 0.5})
         Confirm.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
         Cancel.MouseButton1Click:Connect(function() Overlay:Destroy() end)
     end)
@@ -201,42 +225,60 @@ function Library:CreateWindow(title)
     end)
 
     local Tabs = {}
-    local First = true
+    local ActiveTab = nil
 
     function Tabs:CreateTab(name)
+        local tab = {}
         local Page = Instance.new("ScrollingFrame")
         Page.Size = UDim2.fromScale(1, 1)
         Page.BackgroundTransparency = 1
         Page.BorderSizePixel = 0
-        Page.ScrollBarThickness = 2
+        Page.ScrollBarThickness = 3
         Page.ScrollBarImageColor3 = Theme.Accent
-        Page.Visible = First
+        Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        Page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        Page.Visible = false
         Page.Parent = ContentArea
-        Instance.new("UIListLayout", Page).Padding = UDim.new(0, 8)
-        Page.UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        local PageList = Instance.new("UIListLayout", Page)
+        PageList.Padding = UDim.new(0, 8)
+        PageList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        Instance.new("UIPadding", Page).PaddingTop = UDim.new(0, 8)
 
         local TabBtn = Instance.new("TextButton")
-        TabBtn.Size = UDim2.new(0.9, 0, 0, 35)
-        TabBtn.BackgroundColor3 = First and Theme.Accent or Color3.fromRGB(30, 40, 60)
-        TabBtn.Text = name
-        TabBtn.TextColor3 = Theme.TextPrimary
+        TabBtn.Size = UDim2.new(0.88, 0, 0, 28)
+        TabBtn.BackgroundColor3 = Theme.Section
+        TabBtn.BackgroundTransparency = 1
+        TabBtn.Text = name:upper()
+        TabBtn.TextColor3 = Theme.TextSecondary
         TabBtn.Font = Theme.Font
-        TabBtn.TextSize = 13
+        TabBtn.TextSize = 12
         TabBtn.Parent = TabContainer
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
 
         TabBtn.MouseButton1Click:Connect(function()
-            for _, p in ipairs(ContentArea:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
-            for _, b in ipairs(TabContainer:GetChildren()) do if b:IsA("TextButton") then b.BackgroundColor3 = Color3.fromRGB(30, 40, 60) end end
-            Page.Visible = true TabBtn.BackgroundColor3 = Theme.Accent
+            if ActiveTab then
+                ActiveTab.Button.TextColor3 = Theme.TextSecondary
+                ActiveTab.Button.BackgroundTransparency = 1
+                ActiveTab.Page.Visible = false
+            end
+            ActiveTab = {Button = TabBtn, Page = Page}
+            TabBtn.TextColor3 = Theme.Accent
+            TabBtn.BackgroundTransparency = 0.8
+            Page.Visible = true
         end)
 
-        First = false
+        if not ActiveTab then
+            ActiveTab = {Button = TabBtn, Page = Page}
+            TabBtn.TextColor3 = Theme.Accent
+            TabBtn.BackgroundTransparency = 0.8
+            Page.Visible = true
+        end
+
         local Elements = {}
 
         function Elements:CreateSection(text)
             local sf = Instance.new("Frame")
-            sf.Size = UDim2.new(0.95, 0, 0, 25)
+            sf.Size = UDim2.new(0.95, 0, 0, 28)
             sf.BackgroundTransparency = 1
             sf.Parent = Page
             local lb = Instance.new("TextLabel")
@@ -245,14 +287,184 @@ function Library:CreateWindow(title)
             lb.Text = text:upper()
             lb.TextColor3 = Theme.Accent
             lb.Font = Theme.FontBold
-            lb.TextSize = 11
+            lb.TextSize = 12
             lb.TextXAlignment = Enum.TextXAlignment.Left
             lb.Parent = sf
+            local ln = Instance.new("Frame")
+            ln.Size = UDim2.new(1, -lb.TextBounds.X - 10, 0, 1)
+            ln.Position = UDim2.new(0, lb.TextBounds.X + 10, 0.5, 0)
+            ln.BackgroundColor3 = Theme.Stroke
+            ln.BorderSizePixel = 0
+            ln.Parent = sf
+        end
+
+        function Elements:CreateButton(text, callback)
+            local bf = Instance.new("Frame")
+            bf.Size = UDim2.new(0.9, 0, 0, 32)
+            bf.BackgroundColor3 = Theme.Section
+            bf.Parent = Page
+            Instance.new("UICorner", bf).CornerRadius = Theme.CornerRadius
+            local us = Instance.new("UIStroke", bf)
+            us.Color = Theme.Stroke
+            us.Thickness = 1
+            local tb = Instance.new("TextButton")
+            tb.Size = UDim2.new(1, 0, 1, 0)
+            tb.BackgroundTransparency = 1
+            tb.Text = text
+            tb.TextColor3 = Theme.TextPrimary
+            tb.Font = Theme.Font
+            tb.TextSize = 14
+            tb.Parent = bf
+            TweenMgr.Ripple(tb, Theme.Accent)
+            tb.MouseButton1Click:Connect(callback)
+        end
+
+        function Elements:CreateToggle(text, default, callback)
+            local tf = Instance.new("Frame")
+            tf.Size = UDim2.new(0.9, 0, 0, 32)
+            tf.BackgroundColor3 = Theme.Section
+            tf.Parent = Page
+            Instance.new("UICorner", tf).CornerRadius = Theme.CornerRadius
+            Instance.new("UIStroke", tf).Color = Theme.Stroke
+            
+            local lb = Instance.new("TextLabel")
+            lb.Size = UDim2.new(1, -60, 1, 0)
+            lb.Position = UDim2.new(0, 15, 0, 0)
+            lb.BackgroundTransparency = 1
+            lb.Text = text
+            lb.TextColor3 = Theme.TextPrimary
+            lb.Font = Theme.Font
+            lb.TextSize = 14
+            lb.TextXAlignment = Enum.TextXAlignment.Left
+            lb.Parent = tf
+
+            local sbg = Instance.new("Frame")
+            sbg.Size = UDim2.new(0, 38, 0, 18)
+            sbg.Position = UDim2.new(1, -53, 0.5, -9)
+            sbg.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50, 50, 50)
+            sbg.Parent = tf
+            Instance.new("UICorner", sbg).CornerRadius = UDim.new(1, 0)
+
+            local sc = Instance.new("Frame")
+            sc.Size = UDim2.new(0, 14, 0, 14)
+            sc.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            sc.BackgroundColor3 = Color3.new(1, 1, 1)
+            sc.Parent = sbg
+            Instance.new("UICorner", sc).CornerRadius = UDim.new(1, 0)
+
+            local cb = Instance.new("TextButton")
+            cb.Size = UDim2.fromScale(1, 1)
+            cb.BackgroundTransparency = 1
+            cb.Text = ""
+            cb.Parent = tf
+
+            local state = default
+            cb.MouseButton1Click:Connect(function()
+                state = not state
+                TweenMgr.Create(sc, {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)})
+                TweenMgr.Create(sbg, {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50, 50, 50)})
+                callback(state)
+            end)
+        end
+
+        function Elements:CreateSlider(text, min, max, default, callback)
+            local sf = Instance.new("Frame")
+            sf.Size = UDim2.new(0.9, 0, 0, 42)
+            sf.BackgroundColor3 = Theme.Section
+            sf.Parent = Page
+            Instance.new("UICorner", sf).CornerRadius = Theme.CornerRadius
+            Instance.new("UIStroke", sf).Color = Theme.Stroke
+
+            local lb = Instance.new("TextLabel")
+            lb.Size = UDim2.new(1, -30, 0, 18)
+            lb.Position = UDim2.new(0, 15, 0, 5)
+            lb.BackgroundTransparency = 1
+            lb.Text = text
+            lb.TextColor3 = Theme.TextPrimary
+            lb.Font = Theme.Font
+            lb.TextSize = 13
+            lb.TextXAlignment = Enum.TextXAlignment.Left
+            lb.Parent = sf
+
+            local vl = Instance.new("TextLabel")
+            vl.Size = UDim2.new(0, 45, 0, 18)
+            vl.Position = UDim2.new(1, -60, 0, 5)
+            vl.BackgroundTransparency = 1
+            vl.Text = tostring(default)
+            vl.TextColor3 = Theme.Accent
+            vl.Font = Theme.Font
+            vl.TextSize = 13
+            vl.TextXAlignment = Enum.TextXAlignment.Right
+            vl.Parent = sf
+
+            local bg = Instance.new("TextButton")
+            bg.Size = UDim2.new(1, -30, 0, 6)
+            bg.Position = UDim2.new(0, 15, 0, 32)
+            bg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            bg.Text = ""
+            bg.AutoButtonColor = false
+            bg.Parent = sf
+            Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+
+            local fl = Instance.new("Frame")
+            fl.Size = UDim2.fromScale((default - min) / (max - min), 1)
+            fl.BackgroundColor3 = Theme.Accent
+            fl.Parent = bg
+            Instance.new("UICorner", fl).CornerRadius = UDim.new(1, 0)
+
+            local function update(input)
+                local pos = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
+                local val = math.floor(min + (max - min) * pos)
+                fl.Size = UDim2.fromScale(pos, 1)
+                vl.Text = tostring(val)
+                callback(val)
+            end
+
+            local dragging = false
+            bg.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true update(input) end end)
+            UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+            UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then update(input) end end)
+        end
+
+        function Elements:CreateColorPicker(text, default, callback)
+            local cf = Instance.new("Frame")
+            cf.Size = UDim2.new(0.9, 0, 0, 32)
+            cf.BackgroundColor3 = Theme.Section
+            cf.Parent = Page
+            Instance.new("UICorner", cf).CornerRadius = Theme.CornerRadius
+            Instance.new("UIStroke", cf).Color = Theme.Stroke
+
+            local lb = Instance.new("TextLabel")
+            lb.Size = UDim2.new(1, -60, 1, 0)
+            lb.Position = UDim2.new(0, 15, 0, 0)
+            lb.BackgroundTransparency = 1
+            lb.Text = text
+            lb.TextColor3 = Theme.TextPrimary
+            lb.Font = Theme.Font
+            lb.TextSize = 14
+            lb.TextXAlignment = Enum.TextXAlignment.Left
+            lb.Parent = cf
+
+            local cp = Instance.new("TextButton")
+            cp.Size = UDim2.new(0, 24, 0, 24)
+            cp.Position = UDim2.new(1, -35, 0.5, -12)
+            cp.BackgroundColor3 = default
+            cp.Text = ""
+            cp.Parent = cf
+            Instance.new("UICorner", cp).CornerRadius = UDim.new(0, 4)
+
+            local colors = {Color3.new(1,1,1), Color3.new(1,0,0), Color3.new(0,1,0), Color3.new(0,0,1), Color3.new(1,1,0), Color3.new(1,0,1), Color3.new(0,1,1)}
+            local i = 1
+            cp.MouseButton1Click:Connect(function()
+                i = i + 1 if i > #colors then i = 1 end
+                cp.BackgroundColor3 = colors[i]
+                callback(colors[i])
+            end)
         end
 
         function Elements:CreateLabel(text)
             local lb = Instance.new("TextLabel")
-            lb.Size = UDim2.new(0.95, 0, 0, 20)
+            lb.Size = UDim2.new(0.9, 0, 0, 20)
             lb.BackgroundTransparency = 1
             lb.Text = text
             lb.TextColor3 = Theme.TextSecondary
@@ -260,139 +472,7 @@ function Library:CreateWindow(title)
             lb.TextSize = 13
             lb.TextXAlignment = Enum.TextXAlignment.Left
             lb.Parent = Page
-        end
-
-        function Elements:CreateButton(text, callback)
-            local Btn = Instance.new("TextButton")
-            Btn.Size = UDim2.new(0.95, 0, 0, 35)
-            Btn.BackgroundColor3 = Theme.Section
-            Btn.Text = text
-            Btn.TextColor3 = Theme.TextPrimary
-            Btn.Font = Theme.Font
-            Btn.TextSize = 13
-            Btn.Parent = Page
-            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
-            Instance.new("UIStroke", Btn).Color = Theme.Stroke
-            Btn.MouseButton1Click:Connect(callback)
-        end
-
-        function Elements:CreateToggle(text, default, callback)
-            local TFrame = Instance.new("Frame")
-            TFrame.Size = UDim2.new(0.95, 0, 0, 35)
-            TFrame.BackgroundColor3 = Theme.Section
-            TFrame.Parent = Page
-            Instance.new("UICorner", TFrame).CornerRadius = UDim.new(0, 6)
-            Instance.new("UIStroke", TFrame).Color = Theme.Stroke
-
-            local lb = Instance.new("TextLabel")
-            lb.Size = UDim2.new(1, -50, 1, 0)
-            lb.Position = UDim2.new(0, 10, 0, 0)
-            lb.BackgroundTransparency = 1
-            lb.Text = text
-            lb.TextColor3 = Theme.TextPrimary
-            lb.Font = Theme.Font
-            lb.TextSize = 13
-            lb.TextXAlignment = Enum.TextXAlignment.Left
-            lb.Parent = TFrame
-
-            local Switch = Instance.new("TextButton")
-            Switch.Size = UDim2.new(0, 35, 0, 18)
-            Switch.Position = UDim2.new(1, -45, 0.5, -9)
-            Switch.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50, 50, 50)
-            Switch.Text = ""
-            Switch.Parent = TFrame
-            Instance.new("UICorner", Switch).CornerRadius = UDim.new(1, 0)
-
-            local state = default
-            Switch.MouseButton1Click:Connect(function()
-                state = not state
-                Tween(Switch, {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50, 50, 50)})
-                callback(state)
-            end)
-        end
-
-        function Elements:CreateSlider(text, min, max, default, callback)
-            local SFrame = Instance.new("Frame")
-            SFrame.Size = UDim2.new(0.95, 0, 0, 45)
-            SFrame.BackgroundColor3 = Theme.Section
-            SFrame.Parent = Page
-            Instance.new("UICorner", SFrame).CornerRadius = UDim.new(0, 6)
-            Instance.new("UIStroke", SFrame).Color = Theme.Stroke
-
-            local lb = Instance.new("TextLabel")
-            lb.Size = UDim2.new(1, -10, 0, 20)
-            lb.Position = UDim2.new(0, 10, 0, 5)
-            lb.BackgroundTransparency = 1
-            lb.Text = text .. ": " .. default
-            lb.TextColor3 = Theme.TextPrimary
-            lb.Font = Theme.Font
-            lb.TextSize = 12
-            lb.TextXAlignment = Enum.TextXAlignment.Left
-            lb.Parent = SFrame
-
-            local Bar = Instance.new("TextButton")
-            Bar.Size = UDim2.new(1, -20, 0, 6)
-            Bar.Position = UDim2.new(0, 10, 0, 30)
-            Bar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            Bar.Text = ""
-            Bar.AutoButtonColor = false
-            Bar.Parent = SFrame
-            Instance.new("UICorner", Bar).CornerRadius = UDim.new(1, 0)
-
-            local Fill = Instance.new("Frame")
-            Fill.Size = UDim2.fromScale((default - min) / (max - min), 1)
-            Fill.BackgroundColor3 = Theme.Accent
-            Fill.Parent = Bar
-            Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
-
-            local function Update(input)
-                local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
-                local val = math.floor(min + (max - min) * pos)
-                Fill.Size = UDim2.fromScale(pos, 1)
-                lb.Text = text .. ": " .. val
-                callback(val)
-            end
-
-            local dragging = false
-            Bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true Update(input) end end)
-            UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-            UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then Update(input) end end)
-        end
-
-        function Elements:CreateColorPicker(text, default, callback)
-            local CPFrame = Instance.new("Frame")
-            CPFrame.Size = UDim2.new(0.95, 0, 0, 35)
-            CPFrame.BackgroundColor3 = Theme.Section
-            CPFrame.Parent = Page
-            Instance.new("UICorner", CPFrame).CornerRadius = UDim.new(0, 6)
-            Instance.new("UIStroke", CPFrame).Color = Theme.Stroke
-
-            local lb = Instance.new("TextLabel")
-            lb.Size = UDim2.new(1, -50, 1, 0)
-            lb.Position = UDim2.new(0, 10, 0, 0)
-            lb.BackgroundTransparency = 1
-            lb.Text = text
-            lb.TextColor3 = Theme.TextPrimary
-            lb.Font = Theme.Font
-            lb.TextSize = 13
-            lb.TextXAlignment = Enum.TextXAlignment.Left
-            lb.Parent = CPFrame
-
-            local Preview = Instance.new("TextButton")
-            Preview.Size = UDim2.new(0, 25, 0, 25)
-            Preview.Position = UDim2.new(1, -35, 0.5, -12)
-            Preview.BackgroundColor3 = default
-            Preview.Text = ""
-            Preview.Parent = CPFrame
-            Instance.new("UICorner", Preview).CornerRadius = UDim.new(0, 4)
-
-            local colors = {Color3.new(1,0,0), Color3.new(0,1,0), Color3.new(0,0,1), Color3.new(1,1,1), Color3.new(1,1,0), Color3.new(1,0,1)}
-            local index = 1
-            Preview.MouseButton1Click:Connect(function()
-                index = index + 1 if index > #colors then index = 1 end
-                Preview.BackgroundColor3 = colors[index]
-                callback(colors[index])
-            end)
+            Instance.new("UIPadding", lb).PaddingLeft = UDim.new(0, 15)
         end
 
         return Elements
